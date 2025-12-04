@@ -164,46 +164,22 @@ long archive_directory(char *path, Directory_item **archive, int *current_index,
 }
 
 /*
- * Szerializalja az archivalt mappat egy bufferbe.
+ * Szerializalja az archivalt mappa elemet egy bufferbe.
  * Siker eseten a buffer meretet adja vissza, hiba eseten negativ kodot.
  */
-long serialize_archive(Directory_item *archive, int archive_size, char **buffer) {
-    if (archive_size == 0) return EMPTY_DIRECTORY;
-    int data_size = sizeof(int);
-    for (int i = 0; i < archive_size; i++) {
-        data_size += sizeof(bool);
-        if (archive[i].is_dir) {
-            data_size += sizeof(int);
-            data_size += strlen(archive[i].dir_path) + 1;
-        }
-        else {
-            data_size += sizeof(long);
-            data_size += strlen(archive[i].file_path) + 1;
-            data_size += archive[i].file_size;
-        }
+long serialize_item(Directory_item *item, FILE *f) {
+    long data_size = 0;
+    long item_size = sizeof(bool) + ((item->is_dir) ? (strlen(item->dir_path) + 1 + sizeof(int)) : (sizeof(long) + strlen(item->file_path) + 1 + item->file_size));
+    data_size += sizeof(long) * fwrite(&item_size, sizeof(long), 1, f);
+    data_size += sizeof(bool) * fwrite(&item->is_dir, sizeof(bool), 1, f);
+    if (item->is_dir) {
+        data_size += sizeof(int) * fwrite(&item->perms, sizeof(int), 1, f);
+        data_size += sizeof(char) * fwrite(item->dir_path, sizeof(char), strlen(item->dir_path) + 1, f);
     }
-    *buffer = malloc(data_size);
-    if (*buffer == NULL) return MALLOC_ERROR;
-    char *current = *buffer;
-    memcpy(current, &archive_size, sizeof(int));
-    current += sizeof(int);
-    for (int i = 0; i < archive_size; i++) {
-        memcpy(current, &archive[i].is_dir, sizeof(bool));
-        current += sizeof(bool);
-        if (archive[i].is_dir) {
-            memcpy(current, &archive[i].perms, sizeof(int));
-            current += sizeof(int);
-            memcpy(current, archive[i].dir_path, strlen(archive[i].dir_path) + 1);
-            current += strlen(archive[i].dir_path) + 1;
-        }
-        else {
-            memcpy(current, &archive[i].file_size, sizeof(long));
-            current += sizeof(long);
-            memcpy(current, archive[i].file_path, strlen(archive[i].file_path) + 1);
-            current += strlen(archive[i].file_path) + 1;
-            memcpy(current, archive[i].file_data, archive[i].file_size);
-            current += archive[i].file_size;
-        }
+    else {
+        data_size += fwrite(&item->file_size, sizeof(long), 1, f);
+        data_size += fwrite(item->file_path, sizeof(char), strlen(item->file_path) + 1, f);
+        data_size += fwrite(item->file_data, sizeof(char), item->file_size, f);
     }
     return data_size;
 }

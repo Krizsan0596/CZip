@@ -2,9 +2,9 @@
 #define DIRECTORY_H
 
 #include "data_types.h"
+#include <stdio.h>
 
-long archive_directory(char *path, Directory_item **archive, int *current, int *archive_size);
-long serialize_archive(Directory_item *archive, int archive_size, char **buffer);
+long serialize_item(Directory_item *item, FILE *f);
 int deserialize_archive(Directory_item **archive, char *buffer);
 int extract_directory(char *path, Directory_item *archive, int archive_size, bool force, bool no_preserve_perms);
 int prepare_directory(char *input_file, char **data, int *directory_size);
