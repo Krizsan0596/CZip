@@ -16,16 +16,25 @@
  * Rekurzivan bejarja a mappat es fajlonkent egy tombbe menti az adatokat.
  * Siker eseten a mappa meretet adja vissza bajtokban, hiba eseten negativ kodot.
  */
-long archive_directory(char *path, Directory_item **archive, int *current_index, int *archive_size) {
+long archive_directory(char *path, int *archive_size, long *data_size) {
     DIR *directory = NULL;
     long dir_size = 0;
     long result = 0;
     char *newpath = NULL;
     Directory_item current_item = {0};
+    char *temp_file = malloc(strlen(path) + 6); //prefixed dot + .tmp + null terminator
+    strcpy(temp_file, ".");
+    strcat(temp_file, path);
+    strcat(temp_file, ".tmp");
+    FILE *f = fopen(temp_file, "wb");
+    if (f == NULL) {
+        free(temp_file);
+        return FILE_READ_ERROR;
+    }
     
     while (true) {
         /* Az elso hivaskor felvesszuk a gyoker mappat az archivumba, hogy a relativ utak megmaradjanak. */
-        if (*current_index == 0) {
+        if (*archive_size == 0) {
             struct stat root_st;
             if (stat(path, &root_st) != 0) {
                 result = DIRECTORY_ERROR;
@@ -39,28 +48,13 @@ long archive_directory(char *path, Directory_item **archive, int *current_index,
                 result = MALLOC_ERROR;
                 break;
             }
-            Directory_item *temp = realloc(*archive, (*archive_size + 1) * sizeof(Directory_item));
-            if (temp != NULL) *archive = temp;
-            else {
-                result = MALLOC_ERROR;
-                current_item = root;
-                break;
-            }
             (*archive_size)++;
-            (*archive)[(*current_index)++] = root;
+            *data_size += serialize_item(&root, f);
+            free(root.dir_path);
         }
 
         directory = opendir(path);
-        if (directory == NULL) {
-            if (*current_index == 1) {
-                current_item = (*archive)[0];
-                (*archive_size)--;
-                (*current_index)--;
-            }
-            result = DIRECTORY_OPEN_ERROR;
-            break;
-        }
-        
+
         while (true) {
             struct dirent *dir = readdir(directory);
             if (dir == NULL) break;
@@ -92,16 +86,10 @@ long archive_directory(char *path, Directory_item **archive, int *current_index,
                     current_item = subdir;
                     break;
                 }
-                Directory_item *temp = realloc(*archive, (*archive_size + 1) * sizeof(Directory_item));
-                if (temp != NULL) *archive = temp;
-                else {
-                    result = MALLOC_ERROR;
-                    current_item = subdir;
-                    break;
-                }
                 (*archive_size)++;
-                (*archive)[(*current_index)++] = subdir;
-                long subdir_size = archive_directory(newpath, archive, current_index, archive_size);
+                *data_size += serialize_item(&subdir, f);
+                free(subdir.dir_path);
+                long subdir_size = archive_directory(newpath, archive_size, data_size);
                 if (subdir_size < 0) {
                     result = subdir_size;
                     break;
@@ -130,16 +118,10 @@ long archive_directory(char *path, Directory_item **archive, int *current_index,
                     }
                 }
                 dir_size += file.file_size;
-                Directory_item *temp = realloc(*archive, (*archive_size + 1) * sizeof(Directory_item));
-                if (temp != NULL) *archive = temp;
-                else {
-                    result = MALLOC_ERROR;
-                    current_item = file;
-                    break;
-                }
-
                 (*archive_size)++;
-                (*archive)[(*current_index)++] = file;
+                data_size += serialize_item(&file, f);
+                free(file.file_path);
+                free(file.file_data);
             }
             free(newpath);
             newpath = NULL;
