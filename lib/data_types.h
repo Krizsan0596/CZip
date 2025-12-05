@@ -8,6 +8,8 @@
  */
 static const char magic[4] = {'H', 'U', 'F', 'F'};
 
+#define SERIALIZED_TMP_FILE ".serialized.tmp"
+
 
 // Jelzi, hogy egy node level (adatot tartalmaz) vagy csomopont.
 typedef enum {

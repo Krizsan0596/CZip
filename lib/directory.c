@@ -22,13 +22,8 @@ long archive_directory(char *path, int *archive_size, long *data_size) {
     long result = 0;
     char *newpath = NULL;
     Directory_item current_item = {0};
-    char *temp_file = malloc(strlen(path) + 6); //prefixed dot + .tmp + null terminator
-    strcpy(temp_file, ".");
-    strcat(temp_file, path);
-    strcat(temp_file, ".tmp");
-    FILE *f = fopen(temp_file, "wb");
+    FILE *f = fopen(SERIALIZED_TMP_FILE, "wb");
     if (f == NULL) {
-        free(temp_file);
         return FILE_READ_ERROR;
     }
     
@@ -142,6 +137,7 @@ long archive_directory(char *path, int *archive_size, long *data_size) {
     }
     free(newpath);
     if (directory != NULL) closedir(directory);
+    fclose(f);
     return result;
 }
 
