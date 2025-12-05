@@ -167,50 +167,46 @@ long serialize_item(Directory_item *item, FILE *f) {
  * Kicsomagolja az archivalt mappat a megadott utvonalra, letrehozza a mappakat es fajlokat.
  * Siker eseten 0-t ad vissza, hiba eseten negativ kodot.
  */
-int extract_directory(char *path, Directory_item *archive, int archive_size, bool force, bool no_preserve_perms) {
+int extract_directory(char *path, Directory_item *item, bool force, bool no_preserve_perms) {
     if (path == NULL) path = ".";
-    for (int current_index = 0; current_index < archive_size; current_index++) {
-        Directory_item *current = &archive[current_index];
-        char *item_path = current->is_dir ? current->dir_path : current->file_path;
-        char *full_path = malloc(strlen(path) + strlen(item_path) + 2);
-        if (full_path == NULL) return MALLOC_ERROR;
+    char *item_path = item->is_dir ? item->dir_path : item->file_path;
+    char *full_path = malloc(strlen(path) + strlen(item_path) + 2);
+    if (full_path == NULL) return MALLOC_ERROR;
 
-        /* Ha a felhasznalo adott kimeneti mappat, akkor ott kezdjuk a mappa felepiteset. */
-        strcpy(full_path, path);
-        strcat(full_path, "/");
-        strcat(full_path, item_path);
-        if (current->is_dir) {
-           int ret = mkdir(full_path, current->perms);
-           if (ret != 0 && errno != EEXIST) {
+    /* Ha a felhasznalo adott kimeneti mappat, akkor ott kezdjuk a mappa felepiteset. */
+    strcpy(full_path, path);
+    strcat(full_path, "/");
+    strcat(full_path, item_path);
+    if (item->is_dir) {
+       int ret = mkdir(full_path, item->perms);
+       if (ret != 0 && errno != EEXIST) {
+           free(full_path);
+           return MKDIR_ERROR;
+       }
+       if (no_preserve_perms && errno == EEXIST) {
+           if (chmod(full_path, item->perms) != 0) {
                free(full_path);
                return MKDIR_ERROR;
            }
-           if (no_preserve_perms && errno == EEXIST) {
-               if (chmod(full_path, current->perms) != 0) {
-                   free(full_path);
-                   return MKDIR_ERROR;
-               }
-           }
-        }
-        else {
-            if (current->file_size == 0) {
-                /* Create an empty file */
-                FILE *f = fopen(full_path, "wb");
-                if (f == NULL) {
-                    free(full_path);
-                    return FILE_WRITE_ERROR;
-                }
-                fclose(f);
-            } else {
-                int ret = write_raw(full_path, current->file_data, current->file_size, force);
-                if (ret < 0) {
-                    free(full_path);
-                    return FILE_WRITE_ERROR;
-                }
+       }
+    }
+    else {
+        if (item->file_size == 0) {
+            FILE *f = fopen(full_path, "wb");
+            if (f == NULL) {
+                free(full_path);
+                return FILE_WRITE_ERROR;
+            }
+            fclose(f);
+        } else {
+            int ret = write_raw(full_path, item->file_data, item->file_size, force);
+            if (ret < 0) {
+                free(full_path);
+                return FILE_WRITE_ERROR;
             }
         }
-        free(full_path);
     }
+    free(full_path);
     return SUCCESS;
 }
 
