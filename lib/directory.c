@@ -222,47 +222,35 @@ int extract_directory(char *path, Directory_item *archive, int archive_size, boo
  * Visszaalakitja a szerializalt bufferbol az archivum tombot.
  * Siker eseten az archivum meretet adja vissza, hiba eseten negativ kodot.
  */
-int deserialize_archive(Directory_item **archive, char *buffer) {
-    int archive_size;
-    char *current = buffer;
-    memcpy(&archive_size, current, sizeof(int));
-    current += sizeof(int);
-    *archive = calloc(archive_size, sizeof(Directory_item));
-    if (*archive == NULL) return MALLOC_ERROR;
-    int i = 0;
-    while (i < archive_size) {
-        memcpy(&(*archive)[i].is_dir, current, sizeof(bool));
-        current += sizeof(bool);
-        if ((*archive)[i].is_dir) {
-            memcpy(&(*archive)[i].perms, current, sizeof(int));
-            current += sizeof(int);
-            char *end = strchr(current, '\0');
-            int n = end - current + 1;
-            (*archive)[i].dir_path = malloc(n);
-            if ((*archive)[i].dir_path == NULL) return MALLOC_ERROR;
-            memcpy((*archive)[i].dir_path, current, n);
-            current += n;
-        }
-        else {
-            memcpy(&(*archive)[i].file_size, current, sizeof(long));
-            current += sizeof(long);
-            char *end = strchr(current, '\0');
-            int n = end - current + 1;
-            (*archive)[i].file_path = malloc(n);
-            if ((*archive)[i].file_path == NULL) return MALLOC_ERROR;
-            memcpy((*archive)[i].file_path, current, n);
-            current += n;
-            if ((*archive)[i].file_size > 0) {
-                (*archive)[i].file_data = malloc((*archive)[i].file_size);
-                if ((*archive)[i].file_data == NULL) return MALLOC_ERROR;
-                memcpy((*archive)[i].file_data, current, (*archive)[i].file_size);
-                current += (*archive)[i].file_size;
-            } else {
-                (*archive)[i].file_data = NULL;
-            }
-        }
-        i++;
+long deserialize_item(Directory_item *item, FILE *f) {
+    long archive_size;
+    long read_size = 0;
+    read_size += sizeof(long) * fread(&archive_size, sizeof(long), 1, f);
+    item = calloc(1, sizeof(Directory_item));
+    if (item == NULL) return MALLOC_ERROR;
+    read_size += sizeof(bool) * fread(&item->is_dir, sizeof(bool), 1, f);
+    if (item->is_dir) {
+        read_size += sizeof(int) * fread(&item->perms, sizeof(int), 1, f);
+        int path_len = archive_size - sizeof(bool) - sizeof(int);
+        item->dir_path = malloc(sizeof(char) * path_len);
+        if (item->dir_path == NULL) return MALLOC_ERROR;
+        read_size += sizeof(char) * fread(item->dir_path, sizeof(char), path_len, f);
     }
+    else {
+        read_size += sizeof(long) * fread(&item->file_size, sizeof(long), 1, f);
+        int path_len = archive_size - sizeof(bool) - sizeof(long) - item->file_size;
+        item->file_path = malloc(path_len);
+        if (item->file_path == NULL) return MALLOC_ERROR;
+        read_size += sizeof(char) * fread(item->file_path, sizeof(char), path_len, f);
+        if (item->file_size > 0) {
+            item->file_data = malloc(item->file_size);
+            if (item->file_data == NULL) return MALLOC_ERROR;
+            read_size += sizeof(char) * fread(item->file_data, sizeof(char), item->file_size, f);
+        } else {
+            item->file_data = NULL;
+        }
+    }
+    if (read_size != archive_size) return FILE_READ_ERROR;
     return archive_size;
 }
 
