@@ -27,7 +27,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     if (is_root) {
         f = fopen(SERIALIZED_TMP_FILE, "wb");
         if (f == NULL) {
-            return FILE_READ_ERROR;
+            return FILE_WRITE_ERROR;
         }
     }
     
@@ -53,6 +53,10 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
         }
 
         directory = opendir(path);
+        if (directory == NULL) {
+            result = DIRECTORY_ERROR;
+            break;
+        }
 
         while (true) {
             struct dirent *dir = readdir(directory);
@@ -142,6 +146,9 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     free(newpath);
     if (directory != NULL) closedir(directory);
     if (is_root) fclose(f);
+    if (result < 0 && is_root) {
+        remove(SERIALIZED_TMP_FILE);
+    }
     return result;
 }
 
@@ -159,7 +166,7 @@ long serialize_item(Directory_item *item, FILE *f) {
         data_size += sizeof(char) * fwrite(item->dir_path, sizeof(char), strlen(item->dir_path) + 1, f);
     }
     else {
-        data_size += fwrite(&item->file_size, sizeof(long), 1, f);
+        data_size += sizeof(long) * fwrite(&item->file_size, sizeof(long), 1, f);
         data_size += fwrite(item->file_path, sizeof(char), strlen(item->file_path) + 1, f);
         data_size += fwrite(item->file_data, sizeof(char), item->file_size, f);
     }
@@ -352,6 +359,9 @@ int prepare_directory(char *input_file, int *directory_size) {
                     result = DIRECTORY_ERROR;
                 }
             }
+            if (temp_file_path != NULL) {
+                remove(temp_file_path);
+            }
             break;
         }
         
@@ -414,6 +424,13 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
                     printf("Nem sikerult a tomoritett mappa beolvasasa.\n");
                 }
                 res = bytes_read;
+                // Free any memory allocated in item before breaking
+                if (item.is_dir) {
+                    free(item.dir_path);
+                } else {
+                    free(item.file_path);
+                    free(item.file_data);
+                }
                 break;
             }
             if (bytes_read == 0 || feof(f)) break;

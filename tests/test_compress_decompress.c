@@ -29,6 +29,7 @@ static int invoke_run_compression(Arguments args) {
             return read_res;
         }
         data_len = read_res;
+        remove(SERIALIZED_TMP_FILE);
     } else {
         int read_res = read_raw(args.input_file, &data);
         if (read_res < 0) {
