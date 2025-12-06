@@ -171,12 +171,17 @@ int main(int argc, char* argv[]){
         int directory_size_int = 0;
 
         if (args.directory) {
-            int prep_res = prepare_directory(args.input_file, &data, &directory_size_int);
+            int prep_res = prepare_directory(args.input_file, &directory_size_int);
             if (prep_res < 0) {
                 return prep_res;
             }
-            data_len = prep_res;
             directory_size = directory_size_int;
+            int read_res = read_raw(SERIALIZED_TMP_FILE, &data);
+            if (read_res < 0) {
+                printf("Nem sikerult beolvasni a szerializalt adatokat.\n");
+                return read_res;
+            }
+            data_len = read_res;
         } else {
             int read_res = read_raw(args.input_file, &data);
             if (read_res < 0) {
@@ -209,7 +214,16 @@ int main(int argc, char* argv[]){
 
         int res = 0;
         if (is_dir) {
-            res = restore_directory(raw_data, args.output_file, args.force, args.no_preserve_perms);
+            FILE *f = fopen(SERIALIZED_TMP_FILE, "wb");
+            if (f == NULL || fwrite(raw_data, 1, raw_size, f) != (size_t)raw_size) {
+                printf("Nem sikerult kiirni a szerializalt adatokat.\n");
+                if (f != NULL) fclose(f);
+                free(raw_data);
+                free(original_name);
+                return FILE_WRITE_ERROR;
+            }
+            fclose(f);
+            res = restore_directory(args.output_file, args.force, args.no_preserve_perms);
         } else {
             char *target = args.output_file != NULL ? args.output_file : original_name;
             int write_res = write_raw(target, raw_data, raw_size, args.force);
