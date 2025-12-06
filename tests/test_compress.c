@@ -67,12 +67,16 @@ static int invoke_run_compression(Arguments args) {
 
     if (args.directory) {
         int directory_size_int = 0;
-        int prep_res = prepare_directory(args.input_file, &data, &directory_size_int);
+        int prep_res = prepare_directory(args.input_file, &directory_size_int);
         if (prep_res < 0) {
             return prep_res;
         }
-        data_len = prep_res;
         directory_size = directory_size_int;
+        int read_res = read_raw(SERIALIZED_TMP_FILE, &data);
+        if (read_res < 0) {
+            return read_res;
+        }
+        data_len = read_res;
     } else {
         int read_res = read_raw(args.input_file, &data);
         if (read_res < 0) {

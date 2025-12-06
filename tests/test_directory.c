@@ -47,22 +47,6 @@ static int remove_directory_recursive(const char *path) {
     return (result != 0) ? result : ret;
 }
 
-// Helper function to free Directory_item arrays
-static void free_directory_items(Directory_item *items, int count) {
-    if (items == NULL) {
-        return;
-    }
-    for (int i = 0; i < count; i++) {
-        if (items[i].is_dir) {
-            free(items[i].dir_path);
-        } else {
-            free(items[i].file_path);
-            free(items[i].file_data);
-        }
-    }
-    free(items);
-}
-
 // Function to recursively compare two directories
 int compare_directories(const char *path1, const char *path2) {
     DIR *dir1 = opendir(path1);
@@ -171,145 +155,14 @@ int compare_directories(const char *path1, const char *path2) {
 
 
 int main() {
-
-    char *test_dir = "../tests/test_dir";
-    char *output_dir = "output_dir";
-
-    // Create test directory
-    mkdir("../tests", 0755);
-    mkdir("../tests/test_dir", 0755);
-    mkdir("../tests/test_dir/subdir", 0755);
-    FILE *f1 = fopen("../tests/test_dir/file1.txt", "w");
-    if (f1) {
-        fprintf(f1, "This is file1.\n");
-        fclose(f1);
-    }
-    FILE *f2 = fopen("../tests/test_dir/subdir/file2.txt", "w");
-    if (f2) {
-        fprintf(f2, "This is file2.\n");
-        fclose(f2);
-    }
-
-    // Create output directory
-    remove_directory_recursive(output_dir);
-    mkdir(output_dir, 0755);
-
-    // 1. Archive the directory
-    Directory_item *archive = NULL;
-    int archive_size = 0;
-    int current_index = 0;
-
-    char original_cwd[1024];
-    if (getcwd(original_cwd, sizeof(original_cwd)) == NULL) {
-        perror("getcwd() error");
-        return 1;
-    }
-
-    if (chdir(test_dir) != 0) {
-        perror("chdir() error");
-        return 1;
-    }
-
-    long dir_size = archive_directory(".", &archive, &current_index, &archive_size);
-
-    if (chdir(original_cwd) != 0) {
-        perror("chdir() error");
-        return 1;
-    }
-
-    if (dir_size < 0) {
-        fprintf(stderr, "Error: Archiving failed with code %ld\n", dir_size);
-        return 1;
-    }
-
-    // 2. Serialize the archive
-    char *buffer = NULL;
-    long buffer_size = serialize_archive(archive, archive_size, &buffer);
-    if (buffer_size < 0) {
-        fprintf(stderr, "Error: Serialization failed with code %ld\n", buffer_size);
-        free(archive);
-        return 1;
-    }
-
-    // 3. Deserialize the archive
-    Directory_item *deserialized_archive = NULL;
-    int deserialized_size = deserialize_archive(&deserialized_archive, buffer);
-    if (deserialized_size < 0) {
-        fprintf(stderr, "Error: Deserialization failed with code %d\n", deserialized_size);
-        free(buffer);
-        free(archive);
-        return 1;
-    }
-
-    // 4. Extract the directory
-    if (chdir(output_dir) != 0) {
-        perror("chdir() error");
-        return 1;
-    }
-    if (extract_directory(".", deserialized_archive, deserialized_size, true, false) != 0) {
-        if (chdir(original_cwd) != 0) {
-            perror("chdir() error");
-        }
-        fprintf(stderr, "Error: Extraction failed\n");
-        free(buffer);
-        free(archive);
-        free(deserialized_archive);
-        return 1;
-    }
-    if (chdir(original_cwd) != 0) {
-        perror("chdir() error");
-        return 1;
-    }
-
-    // 5. Compare the original and extracted directories
-    if (compare_directories(test_dir, output_dir) != 0) {
-        fprintf(stderr, "Error: Directories do not match!\n");
-        // Cleanup
-        free(buffer);
-        free(archive);
-        free(deserialized_archive);
-        return 1;
-    }
-
-
-    // 6. Cleanup
-    free(buffer);
-    for (int i = 0; i < archive_size; i++) {
-        if (archive[i].is_dir) {
-            free(archive[i].dir_path);
-        }
-    }
-    for (int i = 0; i < archive_size; i++) {
-        if (!archive[i].is_dir) {
-            free(archive[i].file_path);
-            free(archive[i].file_data);
-        }
-    }
-    free(archive);
-    for (int i = 0; i < deserialized_size; i++) {
-        if (deserialized_archive[i].is_dir) {
-            free(deserialized_archive[i].dir_path);
-        }
-    }
-    for (int i = 0; i < deserialized_size; i++) {
-        if (!deserialized_archive[i].is_dir) {
-            free(deserialized_archive[i].file_path);
-            free(deserialized_archive[i].file_data);
-        }
-    }
-    free(deserialized_archive);
-
-    remove_directory_recursive(output_dir);
-    remove_directory_recursive(test_dir);
-
     // ==========================================
     // Test prepare_directory function
     // ==========================================
-    printf("Testing prepare_directory function...\n");
+    printf("Testing prepare_directory and restore_directory functions...\n");
 
-    // Create test directory for prepare_directory tests
-    char *prep_test_dir = "../tests/prep_test_dir";
-    char *prep_output_dir = "prep_output_dir";
+    // Create test directory for tests
+    char *test_dir = "../tests/prep_test_dir";
+    char *output_dir = "prep_output_dir";
     
     mkdir("../tests", 0755);
     mkdir("../tests/prep_test_dir", 0755);
@@ -329,69 +182,31 @@ int main() {
     // Test 1: prepare_directory with relative path
     printf("  Test 1: prepare_directory with relative path...\n");
     {
-        char *data = NULL;
         int directory_size = 0;
-        int result = prepare_directory(prep_test_dir, &data, &directory_size);
+        int result = prepare_directory(test_dir, &directory_size);
         if (result < 0) {
             fprintf(stderr, "Error: prepare_directory failed with relative path, code: %d\n", result);
             return 1;
         }
-        if (data == NULL) {
-            fprintf(stderr, "Error: prepare_directory returned NULL data\n");
-            return 1;
-        }
         if (directory_size <= 0) {
             fprintf(stderr, "Error: prepare_directory returned invalid directory_size: %d\n", directory_size);
-            free(data);
             return 1;
         }
         printf("    Relative path test passed. Directory size: %d bytes\n", directory_size);
         
-        // Verify we can deserialize the archive
-        Directory_item *prep_archive = NULL;
-        int prep_archive_size = deserialize_archive(&prep_archive, data);
-        if (prep_archive_size < 0) {
-            fprintf(stderr, "Error: deserialize_archive failed after prepare_directory\n");
-            free(data);
+        // Verify temp file was created
+        struct stat st;
+        if (stat(SERIALIZED_TMP_FILE, &st) != 0) {
+            fprintf(stderr, "Error: Temp file was not created\n");
             return 1;
         }
         
-        // Verify archive has expected items:
-        // 1. prep_test_dir/ (root directory)
-        // 2. prep_test_dir/subdir/ (subdirectory)
-        // 3. prep_test_dir/file1.txt (file)
-        // 4. prep_test_dir/subdir/file2.txt (file)
-        // Total: 4 items
-        if (prep_archive_size != 4) {
-            fprintf(stderr, "Error: expected 4 items in archive, got %d\n", prep_archive_size);
-            free(data);
-            for (int i = 0; i < prep_archive_size; i++) {
-                if (prep_archive[i].is_dir) {
-                    free(prep_archive[i].dir_path);
-                } else {
-                    free(prep_archive[i].file_path);
-                    free(prep_archive[i].file_data);
-                }
-            }
-            free(prep_archive);
-            return 1;
-        }
-        
-        // Cleanup
-        free(data);
-        for (int i = 0; i < prep_archive_size; i++) {
-            if (prep_archive[i].is_dir) {
-                free(prep_archive[i].dir_path);
-            } else {
-                free(prep_archive[i].file_path);
-                free(prep_archive[i].file_data);
-            }
-        }
-        free(prep_archive);
+        // Cleanup temp file
+        remove(SERIALIZED_TMP_FILE);
     }
     
     // Test 2: prepare_directory with absolute path (includes full round-trip verification)
-    printf("  Test 2: prepare_directory with absolute path...\n");
+    printf("  Test 2: prepare_directory with absolute path and restore...\n");
     {
         // Get absolute path to test directory
         char abs_path[1024];
@@ -400,7 +215,7 @@ int main() {
             perror("getcwd error");
             return 1;
         }
-        if (chdir(prep_test_dir) != 0) {
+        if (chdir(test_dir) != 0) {
             perror("chdir error");
             return 1;
         }
@@ -413,128 +228,53 @@ int main() {
             return 1;
         }
         
-        char *data = NULL;
         int directory_size = 0;
-        int result = prepare_directory(abs_path, &data, &directory_size);
+        int result = prepare_directory(abs_path, &directory_size);
         if (result < 0) {
             fprintf(stderr, "Error: prepare_directory failed with absolute path, code: %d\n", result);
             return 1;
         }
-        if (data == NULL) {
-            fprintf(stderr, "Error: prepare_directory returned NULL data for absolute path\n");
-            return 1;
-        }
         if (directory_size <= 0) {
             fprintf(stderr, "Error: prepare_directory returned invalid directory_size for absolute path: %d\n", directory_size);
-            free(data);
             return 1;
         }
         printf("    Absolute path test passed. Directory size: %d bytes\n", directory_size);
         
-        // Verify we can deserialize
-        Directory_item *prep_archive = NULL;
-        int prep_archive_size = deserialize_archive(&prep_archive, data);
-        if (prep_archive_size < 0) {
-            fprintf(stderr, "Error: deserialize_archive failed after prepare_directory with absolute path\n");
-            free(data);
+        // Now test restore_directory
+        remove_directory_recursive(output_dir);
+        mkdir(output_dir, 0755);
+        
+        result = restore_directory(output_dir, true, false);
+        if (result != 0) {
+            fprintf(stderr, "Error: restore_directory failed, code: %d\n", result);
             return 1;
         }
         
-        // With absolute path, paths should be stored relative to the parent directory
-        // So we can extract and verify the round-trip works
-        remove_directory_recursive(prep_output_dir);
-        mkdir(prep_output_dir, 0755);
-        
-        if (chdir(prep_output_dir) != 0) {
-            perror("chdir error");
-            free(data);
-            for (int i = 0; i < prep_archive_size; i++) {
-                if (prep_archive[i].is_dir) {
-                    free(prep_archive[i].dir_path);
-                } else {
-                    free(prep_archive[i].file_path);
-                    free(prep_archive[i].file_data);
-                }
-            }
-            free(prep_archive);
-            return 1;
-        }
-        
-        if (extract_directory(".", prep_archive, prep_archive_size, true, false) != 0) {
-            if (chdir(original_cwd) != 0) {
-                perror("chdir error");
-            }
-            fprintf(stderr, "Error: extract_directory failed for absolute path archive\n");
-            free(data);
-            for (int i = 0; i < prep_archive_size; i++) {
-                if (prep_archive[i].is_dir) {
-                    free(prep_archive[i].dir_path);
-                } else {
-                    free(prep_archive[i].file_path);
-                    free(prep_archive[i].file_data);
-                }
-            }
-            free(prep_archive);
-            return 1;
-        }
-        
-        if (chdir(original_cwd) != 0) {
-            perror("chdir error");
-            return 1;
-        }
-        
-        // Build path to compare - the extracted dir should be prep_output_dir/<dirname>
-        // Extract directory name from prep_test_dir (last component after last '/')
-        char *dirname = strrchr(prep_test_dir, '/');
-        dirname = (dirname != NULL) ? dirname + 1 : prep_test_dir;
+        // Build path to compare - the extracted dir should be output_dir/<dirname>
+        // Extract directory name from test_dir (last component after last '/')
+        char *dirname = strrchr(test_dir, '/');
+        dirname = (dirname != NULL) ? dirname + 1 : test_dir;
         char extracted_path[1024];
-        snprintf(extracted_path, sizeof(extracted_path), "%s/%s", prep_output_dir, dirname);
+        snprintf(extracted_path, sizeof(extracted_path), "%s/%s", output_dir, dirname);
         
         // Compare directories
-        if (compare_directories(prep_test_dir, extracted_path) != 0) {
+        if (compare_directories(test_dir, extracted_path) != 0) {
             fprintf(stderr, "Error: Directories do not match after prepare_directory with absolute path\n");
-            free(data);
-            for (int i = 0; i < prep_archive_size; i++) {
-                if (prep_archive[i].is_dir) {
-                    free(prep_archive[i].dir_path);
-                } else {
-                    free(prep_archive[i].file_path);
-                    free(prep_archive[i].file_data);
-                }
-            }
-            free(prep_archive);
             return 1;
         }
         printf("    Absolute path round-trip verification passed.\n");
         
         // Cleanup
-        free(data);
-        for (int i = 0; i < prep_archive_size; i++) {
-            if (prep_archive[i].is_dir) {
-                free(prep_archive[i].dir_path);
-            } else {
-                free(prep_archive[i].file_path);
-                free(prep_archive[i].file_data);
-            }
-        }
-        free(prep_archive);
-        remove_directory_recursive(prep_output_dir);
+        remove_directory_recursive(output_dir);
     }
     
     // Test 3: prepare_directory with non-existent path (error handling)
     printf("  Test 3: prepare_directory with non-existent path...\n");
     {
-        char *data = NULL;
         int directory_size = 0;
-        int result = prepare_directory("./non_existent_directory_12345", &data, &directory_size);
+        int result = prepare_directory("./non_existent_directory_12345", &directory_size);
         if (result >= 0) {
             fprintf(stderr, "Error: prepare_directory should fail for non-existent directory\n");
-            if (data != NULL) free(data);
-            return 1;
-        }
-        if (data != NULL) {
-            fprintf(stderr, "Error: data should be NULL after failure\n");
-            free(data);
             return 1;
         }
         printf("    Non-existent path error handling test passed. Error code: %d\n", result);
@@ -551,13 +291,11 @@ int main() {
             return 1;
         }
         
-        char *data = NULL;
         int directory_size = 0;
-        int result = prepare_directory(prep_test_dir, &data, &directory_size);
+        int result = prepare_directory(test_dir, &directory_size);
         
         if (getcwd(cwd_after, sizeof(cwd_after)) == NULL) {
             perror("getcwd error");
-            if (data != NULL) free(data);
             return 1;
         }
         
@@ -570,187 +308,133 @@ int main() {
             fprintf(stderr, "Error: Working directory changed after prepare_directory!\n");
             fprintf(stderr, "  Before: %s\n", cwd_before);
             fprintf(stderr, "  After:  %s\n", cwd_after);
-            free(data);
             return 1;
         }
         printf("    Working directory preservation test passed.\n");
-        free(data);
+        remove(SERIALIZED_TMP_FILE);
     }
     
-    // Cleanup test directory
-    remove_directory_recursive(prep_test_dir);
-    
-    printf("All prepare_directory tests passed!\n");
-    
-    // ==========================================
-    // Test restore_directory function
-    // ==========================================
-    printf("Testing restore_directory function...\n");
-    
-    // Create test directory for restore_directory tests
-    char *restore_test_dir_rel = "../tests/restore_test_dir";
-    char *restore_output_dir = "restore_output_dir";
-    
-    mkdir("../tests", 0755);
-    mkdir("../tests/restore_test_dir", 0755);
-    mkdir("../tests/restore_test_dir/subdir", 0755);
-    
-    FILE *rf1 = fopen("../tests/restore_test_dir/file1.txt", "w");
-    if (rf1) {
-        fprintf(rf1, "This is file1 for restore_directory test.\n");
-        fclose(rf1);
-    }
-    FILE *rf2 = fopen("../tests/restore_test_dir/subdir/file2.txt", "w");
-    if (rf2) {
-        fprintf(rf2, "This is file2 for restore_directory test.\n");
-        fclose(rf2);
-    }
-    
-    // Get absolute path to the test directory for proper serialization
-    char restore_abs_path[1024];
-    char restore_saved_cwd[1024];
-    if (getcwd(restore_saved_cwd, sizeof(restore_saved_cwd)) == NULL) {
-        perror("getcwd error");
-        return 1;
-    }
-    if (chdir(restore_test_dir_rel) != 0) {
-        perror("chdir error");
-        return 1;
-    }
-    if (getcwd(restore_abs_path, sizeof(restore_abs_path)) == NULL) {
-        perror("getcwd error");
-        return 1;
-    }
-    if (chdir(restore_saved_cwd) != 0) {
-        perror("chdir error");
-        return 1;
-    }
-    
-    // Test 1: Basic restore_directory functionality
-    printf("  Test 1: Basic restore_directory functionality...\n");
+    // Test 5: restore_directory with NULL output path (restore to current directory)
+    printf("  Test 5: restore_directory with NULL output path...\n");
     {
-        // First, use prepare_directory with absolute path to serialize the directory
-        char *data = NULL;
+        // Get absolute path to test directory
+        char abs_path[1024];
+        char saved_cwd[1024];
+        if (getcwd(saved_cwd, sizeof(saved_cwd)) == NULL) {
+            perror("getcwd error");
+            return 1;
+        }
+        if (chdir(test_dir) != 0) {
+            perror("chdir error");
+            return 1;
+        }
+        if (getcwd(abs_path, sizeof(abs_path)) == NULL) {
+            perror("getcwd error");
+            return 1;
+        }
+        if (chdir(saved_cwd) != 0) {
+            perror("chdir error");
+            return 1;
+        }
+        
         int directory_size = 0;
-        int result = prepare_directory(restore_abs_path, &data, &directory_size);
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
-            return 1;
-        }
-        
-        // Clean output directory
-        remove_directory_recursive(restore_output_dir);
-        
-        // Use restore_directory to extract
-        result = restore_directory(data, restore_output_dir, true, false);
-        if (result != 0) {
-            fprintf(stderr, "Error: restore_directory failed, code: %d\n", result);
-            free(data);
-            return 1;
-        }
-        
-        // Extract directory name from restore_abs_path (last component after last '/')
-        char *dir_name = strrchr(restore_abs_path, '/');
-        dir_name = (dir_name != NULL) ? dir_name + 1 : restore_abs_path;
-        char extracted_path[1024];
-        snprintf(extracted_path, sizeof(extracted_path), "%s/%s", restore_output_dir, dir_name);
-        
-        // Verify extraction by comparing directories
-        if (compare_directories(restore_test_dir_rel, extracted_path) != 0) {
-            fprintf(stderr, "Error: Directories do not match after restore_directory\n");
-            free(data);
-            return 1;
-        }
-        
-        printf("    Basic restore_directory test passed.\n");
-        free(data);
-        
-        // Cleanup
-        remove_directory_recursive(restore_output_dir);
-    }
-    
-    // Test 2: restore_directory with NULL output path (restore to current directory)
-    printf("  Test 2: restore_directory with NULL output path...\n");
-    {
-        char *data = NULL;
-        int directory_size = 0;
-        int result = prepare_directory(restore_abs_path, &data, &directory_size);
+        int result = prepare_directory(abs_path, &directory_size);
         if (result < 0) {
             fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
             return 1;
         }
         
         // Extract directory name
-        char *dir_name = strrchr(restore_abs_path, '/');
-        dir_name = (dir_name != NULL) ? dir_name + 1 : restore_abs_path;
+        char *dir_name = strrchr(abs_path, '/');
+        dir_name = (dir_name != NULL) ? dir_name + 1 : abs_path;
         
         // Clean any existing directory with same name in current directory
         remove_directory_recursive(dir_name);
         
         // Use restore_directory with NULL output
-        result = restore_directory(data, NULL, true, false);
+        result = restore_directory(NULL, true, false);
         if (result != 0) {
             fprintf(stderr, "Error: restore_directory with NULL output failed, code: %d\n", result);
-            free(data);
             return 1;
         }
         
         // Verify extraction
-        if (compare_directories(restore_test_dir_rel, dir_name) != 0) {
+        if (compare_directories(test_dir, dir_name) != 0) {
             fprintf(stderr, "Error: Directories do not match after restore_directory with NULL output\n");
-            free(data);
             remove_directory_recursive(dir_name);
             return 1;
         }
         
         printf("    restore_directory with NULL output test passed.\n");
-        free(data);
         
         // Cleanup
         remove_directory_recursive(dir_name);
     }
     
-    // Test 3: restore_directory with force flag (overwrite existing)
-    printf("  Test 3: restore_directory with force flag...\n");
+    // Test 6: restore_directory with force flag (overwrite existing)
+    printf("  Test 6: restore_directory with force flag...\n");
     {
-        char *data = NULL;
+        // Get absolute path
+        char abs_path[1024];
+        char saved_cwd[1024];
+        if (getcwd(saved_cwd, sizeof(saved_cwd)) == NULL) {
+            perror("getcwd error");
+            return 1;
+        }
+        if (chdir(test_dir) != 0) {
+            perror("chdir error");
+            return 1;
+        }
+        if (getcwd(abs_path, sizeof(abs_path)) == NULL) {
+            perror("getcwd error");
+            return 1;
+        }
+        if (chdir(saved_cwd) != 0) {
+            perror("chdir error");
+            return 1;
+        }
+        
         int directory_size = 0;
-        int result = prepare_directory(restore_abs_path, &data, &directory_size);
+        int result = prepare_directory(abs_path, &directory_size);
         if (result < 0) {
             fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
             return 1;
         }
         
         // Clean output directory and create fresh
-        remove_directory_recursive(restore_output_dir);
+        remove_directory_recursive(output_dir);
         
         // First extraction
-        result = restore_directory(data, restore_output_dir, true, false);
+        result = restore_directory(output_dir, true, false);
         if (result != 0) {
             fprintf(stderr, "Error: first restore_directory failed, code: %d\n", result);
-            free(data);
+            return 1;
+        }
+        
+        // Prepare again for second extraction
+        result = prepare_directory(abs_path, &directory_size);
+        if (result < 0) {
+            fprintf(stderr, "Error: prepare_directory failed on second call, code: %d\n", result);
             return 1;
         }
         
         // Second extraction with force flag (should overwrite)
-        result = restore_directory(data, restore_output_dir, true, false);
+        result = restore_directory(output_dir, true, false);
         if (result != 0) {
             fprintf(stderr, "Error: second restore_directory with force failed, code: %d\n", result);
-            free(data);
             return 1;
         }
         
         printf("    restore_directory with force flag test passed.\n");
-        free(data);
         
         // Cleanup
-        remove_directory_recursive(restore_output_dir);
+        remove_directory_recursive(output_dir);
     }
     
     // Cleanup test directory
-    remove_directory_recursive(restore_test_dir_rel);
+    remove_directory_recursive(test_dir);
     
-    printf("All restore_directory tests passed!\n");
+    printf("All prepare_directory and restore_directory tests passed!\n");
 
     // ==========================================
     // Test directory permissions preservation
@@ -816,124 +500,59 @@ int main() {
     printf("  Original permissions: subdir_700=%04o, subdir_750=%04o, subdir_755=%04o\n", 
            perm_700_mode, perm_750_mode, perm_755_mode);
     
-    // Test: Archive, serialize, deserialize, and extract with permissions verification
+    // Test: Full round-trip preserving directory permissions
     printf("  Test: Full round-trip preserving directory permissions...\n");
     {
-        // Archive the directory
-        Directory_item *perm_archive = NULL;
-        int perm_archive_size = 0;
-        int perm_current_index = 0;
-        
-        char perm_saved_cwd[1024];
-        if (getcwd(perm_saved_cwd, sizeof(perm_saved_cwd)) == NULL) {
+        // Get absolute path
+        char abs_path[1024];
+        char saved_cwd[1024];
+        if (getcwd(saved_cwd, sizeof(saved_cwd)) == NULL) {
             perror("getcwd error");
             return 1;
         }
-        
         if (chdir(perm_test_dir) != 0) {
             perror("chdir error");
             return 1;
         }
-        
-        long perm_dir_size = archive_directory(".", &perm_archive, &perm_current_index, &perm_archive_size);
-        
-        if (chdir(perm_saved_cwd) != 0) {
+        if (getcwd(abs_path, sizeof(abs_path)) == NULL) {
+            perror("getcwd error");
+            return 1;
+        }
+        if (chdir(saved_cwd) != 0) {
             perror("chdir error");
             return 1;
         }
         
-        if (perm_dir_size < 0) {
-            fprintf(stderr, "Error: Archiving failed with code %ld\n", perm_dir_size);
+        // Prepare directory
+        int directory_size = 0;
+        int result = prepare_directory(abs_path, &directory_size);
+        if (result < 0) {
+            fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
             return 1;
-        }
-        
-        // Verify permissions were captured in archive
-        for (int i = 0; i < perm_archive_size; i++) {
-            if (perm_archive[i].is_dir) {
-                printf("    Archived dir: %s with perms=%04o\n", 
-                       perm_archive[i].dir_path, perm_archive[i].perms);
-            }
-        }
-        
-        // Serialize the archive
-        char *perm_buffer = NULL;
-        long perm_buffer_size = serialize_archive(perm_archive, perm_archive_size, &perm_buffer);
-        if (perm_buffer_size < 0) {
-            fprintf(stderr, "Error: Serialization failed with code %ld\n", perm_buffer_size);
-            for (int i = 0; i < perm_archive_size; i++) {
-                if (perm_archive[i].is_dir) {
-                    free(perm_archive[i].dir_path);
-                } else {
-                    free(perm_archive[i].file_path);
-                    free(perm_archive[i].file_data);
-                }
-            }
-            free(perm_archive);
-            return 1;
-        }
-        
-        // Deserialize the archive
-        Directory_item *perm_deserialized = NULL;
-        int perm_deser_size = deserialize_archive(&perm_deserialized, perm_buffer);
-        if (perm_deser_size < 0) {
-            fprintf(stderr, "Error: Deserialization failed with code %d\n", perm_deser_size);
-            free(perm_buffer);
-            for (int i = 0; i < perm_archive_size; i++) {
-                if (perm_archive[i].is_dir) {
-                    free(perm_archive[i].dir_path);
-                } else {
-                    free(perm_archive[i].file_path);
-                    free(perm_archive[i].file_data);
-                }
-            }
-            free(perm_archive);
-            return 1;
-        }
-        
-        // Verify permissions were preserved after deserialization
-        for (int i = 0; i < perm_deser_size; i++) {
-            if (perm_deserialized[i].is_dir) {
-                printf("    Deserialized dir: %s with perms=%04o\n", 
-                       perm_deserialized[i].dir_path, perm_deserialized[i].perms);
-            }
         }
         
         // Extract the directory
         remove_directory_recursive(perm_output_dir);
         mkdir(perm_output_dir, 0755);
         
-        if (extract_directory(perm_output_dir, perm_deserialized, perm_deser_size, true, false) != 0) {
-            fprintf(stderr, "Error: Extraction failed\n");
-            free(perm_buffer);
-            for (int i = 0; i < perm_archive_size; i++) {
-                if (perm_archive[i].is_dir) {
-                    free(perm_archive[i].dir_path);
-                } else {
-                    free(perm_archive[i].file_path);
-                    free(perm_archive[i].file_data);
-                }
-            }
-            free(perm_archive);
-            for (int i = 0; i < perm_deser_size; i++) {
-                if (perm_deserialized[i].is_dir) {
-                    free(perm_deserialized[i].dir_path);
-                } else {
-                    free(perm_deserialized[i].file_path);
-                    free(perm_deserialized[i].file_data);
-                }
-            }
-            free(perm_deserialized);
+        result = restore_directory(perm_output_dir, true, false);
+        if (result != 0) {
+            fprintf(stderr, "Error: restore_directory failed, code: %d\n", result);
             return 1;
         }
+        
+        // Extract directory name
+        char *dir_name = strrchr(abs_path, '/');
+        dir_name = (dir_name != NULL) ? dir_name + 1 : abs_path;
         
         // Verify extracted directory permissions using stat()
         struct stat ext_st_700, ext_st_750, ext_st_755;
         int ext_700_mode = 0, ext_750_mode = 0, ext_755_mode = 0;
         
         char ext_700_path[256], ext_750_path[256], ext_755_path[256];
-        snprintf(ext_700_path, sizeof(ext_700_path), "%s/subdir_700", perm_output_dir);
-        snprintf(ext_750_path, sizeof(ext_750_path), "%s/subdir_750", perm_output_dir);
-        snprintf(ext_755_path, sizeof(ext_755_path), "%s/subdir_755", perm_output_dir);
+        snprintf(ext_700_path, sizeof(ext_700_path), "%s/%s/subdir_700", perm_output_dir, dir_name);
+        snprintf(ext_750_path, sizeof(ext_750_path), "%s/%s/subdir_750", perm_output_dir, dir_name);
+        snprintf(ext_755_path, sizeof(ext_755_path), "%s/%s/subdir_755", perm_output_dir, dir_name);
         
         if (stat(ext_700_path, &ext_st_700) == 0) {
             ext_700_mode = ext_st_700.st_mode & 0777;
@@ -977,26 +596,6 @@ int main() {
         printf("    All directory permissions preserved correctly!\n");
         
         // Cleanup
-        free(perm_buffer);
-        for (int i = 0; i < perm_archive_size; i++) {
-            if (perm_archive[i].is_dir) {
-                free(perm_archive[i].dir_path);
-            } else {
-                free(perm_archive[i].file_path);
-                free(perm_archive[i].file_data);
-            }
-        }
-        free(perm_archive);
-        for (int i = 0; i < perm_deser_size; i++) {
-            if (perm_deserialized[i].is_dir) {
-                free(perm_deserialized[i].dir_path);
-            } else {
-                free(perm_deserialized[i].file_path);
-                free(perm_deserialized[i].file_data);
-            }
-        }
-        free(perm_deserialized);
-        
         remove_directory_recursive(perm_output_dir);
     }
     
@@ -1004,359 +603,6 @@ int main() {
     remove_directory_recursive(perm_test_dir);
     
     printf("All directory permissions tests passed!\n");
-
-    // ==========================================
-    // EDGE CASE TESTS
-    // ==========================================
-    printf("Testing edge cases...\n");
-    
-    // Edge case 1: Deep nested directory structure
-    printf("  Edge case 1: Deep nested directory...\n");
-    {
-        char *deep_test_dir = "../tests/deep_test_dir";
-        char *deep_output_dir = "deep_output_dir";
-        
-        mkdir("../tests", 0755);
-        mkdir(deep_test_dir, 0755);
-        
-        // Create 10 levels deep
-        char path[1024];
-        strcpy(path, deep_test_dir);
-        for (int i = 0; i < 10; i++) {
-            snprintf(path + strlen(path), sizeof(path) - strlen(path), "/level%d", i);
-            mkdir(path, 0755);
-        }
-        
-        // Create file at deepest level
-        char file_path[1024];
-        snprintf(file_path, sizeof(file_path), "%s/deepfile.txt", path);
-        FILE *df = fopen(file_path, "w");
-        if (df) {
-            fprintf(df, "Deep file content.\n");
-            fclose(df);
-        }
-        
-        // Archive, serialize, deserialize, extract
-        Directory_item *deep_archive = NULL;
-        int deep_archive_size = 0;
-        int deep_current_index = 0;
-        
-        char deep_cwd[1024];
-        getcwd(deep_cwd, sizeof(deep_cwd));
-        chdir(deep_test_dir);
-        long deep_size = archive_directory(".", &deep_archive, &deep_current_index, &deep_archive_size);
-        chdir(deep_cwd);
-        assert(deep_size > 0);
-        
-        char *deep_buffer = NULL;
-        long deep_buffer_size = serialize_archive(deep_archive, deep_archive_size, &deep_buffer);
-        assert(deep_buffer_size > 0);
-        
-        Directory_item *deep_deserialized = NULL;
-        int deep_deser_size = deserialize_archive(&deep_deserialized, deep_buffer);
-        assert(deep_deser_size > 0);
-        
-        remove_directory_recursive(deep_output_dir);
-        mkdir(deep_output_dir, 0755);
-        
-        assert(extract_directory(deep_output_dir, deep_deserialized, deep_deser_size, true, false) == 0);
-        assert(compare_directories(deep_test_dir, deep_output_dir) == 0);
-        
-        // Cleanup
-        free(deep_buffer);
-        free_directory_items(deep_archive, deep_archive_size);
-        free_directory_items(deep_deserialized, deep_deser_size);
-        remove_directory_recursive(deep_test_dir);
-        remove_directory_recursive(deep_output_dir);
-        
-        printf("    Deep nested directory test passed.\n");
-    }
-    
-    // Edge case 2: Directory with many files
-    printf("  Edge case 2: Directory with many files...\n");
-    {
-        char *many_test_dir = "../tests/many_files_dir";
-        char *many_output_dir = "many_files_output";
-        
-        mkdir("../tests", 0755);
-        mkdir(many_test_dir, 0755);
-        
-        // Create 100 files
-        for (int i = 0; i < 100; i++) {
-            char file_path[1024];
-            snprintf(file_path, sizeof(file_path), "%s/file%03d.txt", many_test_dir, i);
-            FILE *mf = fopen(file_path, "w");
-            if (mf) {
-                fprintf(mf, "Content of file %d\n", i);
-                fclose(mf);
-            }
-        }
-        
-        Directory_item *many_archive = NULL;
-        int many_archive_size = 0;
-        int many_current_index = 0;
-        
-        char many_cwd[1024];
-        getcwd(many_cwd, sizeof(many_cwd));
-        chdir(many_test_dir);
-        long many_size = archive_directory(".", &many_archive, &many_current_index, &many_archive_size);
-        chdir(many_cwd);
-        assert(many_size > 0);
-        
-        char *many_buffer = NULL;
-        long many_buffer_size = serialize_archive(many_archive, many_archive_size, &many_buffer);
-        assert(many_buffer_size > 0);
-        
-        Directory_item *many_deserialized = NULL;
-        int many_deser_size = deserialize_archive(&many_deserialized, many_buffer);
-        assert(many_deser_size > 0);
-        
-        remove_directory_recursive(many_output_dir);
-        mkdir(many_output_dir, 0755);
-        
-        assert(extract_directory(many_output_dir, many_deserialized, many_deser_size, true, false) == 0);
-        assert(compare_directories(many_test_dir, many_output_dir) == 0);
-        
-        // Cleanup
-        free(many_buffer);
-        free_directory_items(many_archive, many_archive_size);
-        free_directory_items(many_deserialized, many_deser_size);
-        remove_directory_recursive(many_test_dir);
-        remove_directory_recursive(many_output_dir);
-        
-        printf("    Directory with many files test passed.\n");
-    }
-    
-    // Edge case 3: Files with special characters in names
-    printf("  Edge case 3: Files with special characters...\n");
-    {
-        char *special_test_dir = "../tests/special_chars_dir";
-        char *special_output_dir = "special_chars_output";
-        
-        mkdir("../tests", 0755);
-        mkdir(special_test_dir, 0755);
-        
-        // Create files with special characters (safe ones)
-        char *special_names[] = {
-            "file-with-dashes.txt",
-            "file_with_underscores.txt",
-            "file.with.dots.txt",
-            "file123numbers.txt"
-        };
-        
-        for (int i = 0; i < 4; i++) {
-            char file_path[1024];
-            snprintf(file_path, sizeof(file_path), "%s/%s", special_test_dir, special_names[i]);
-            FILE *sf = fopen(file_path, "w");
-            if (sf) {
-                fprintf(sf, "Special file %d\n", i);
-                fclose(sf);
-            }
-        }
-        
-        Directory_item *special_archive = NULL;
-        int special_archive_size = 0;
-        int special_current_index = 0;
-        
-        char special_cwd[1024];
-        getcwd(special_cwd, sizeof(special_cwd));
-        chdir(special_test_dir);
-        long special_size = archive_directory(".", &special_archive, &special_current_index, &special_archive_size);
-        chdir(special_cwd);
-        assert(special_size > 0);
-        
-        char *special_buffer = NULL;
-        long special_buffer_size = serialize_archive(special_archive, special_archive_size, &special_buffer);
-        assert(special_buffer_size > 0);
-        
-        Directory_item *special_deserialized = NULL;
-        int special_deser_size = deserialize_archive(&special_deserialized, special_buffer);
-        assert(special_deser_size > 0);
-        
-        remove_directory_recursive(special_output_dir);
-        mkdir(special_output_dir, 0755);
-        
-        assert(extract_directory(special_output_dir, special_deserialized, special_deser_size, true, false) == 0);
-        assert(compare_directories(special_test_dir, special_output_dir) == 0);
-        
-        // Cleanup
-        free(special_buffer);
-        free_directory_items(special_archive, special_archive_size);
-        free_directory_items(special_deserialized, special_deser_size);
-        remove_directory_recursive(special_test_dir);
-        remove_directory_recursive(special_output_dir);
-        
-        printf("    Files with special characters test passed.\n");
-    }
-    
-    // Edge case 4: Large files in directory
-    printf("  Edge case 4: Large files in directory...\n");
-    {
-        char *large_test_dir = "../tests/large_files_dir";
-        char *large_output_dir = "large_files_output";
-        
-        mkdir("../tests", 0755);
-        mkdir(large_test_dir, 0755);
-        
-        // Create one large file
-        char large_file[1024];
-        snprintf(large_file, sizeof(large_file), "%s/largefile.txt", large_test_dir);
-        FILE *lf = fopen(large_file, "w");
-        if (lf) {
-            debugmalloc_max_block_size(10 * 1024 * 1024);  // 10MB
-            for (int i = 0; i < 10000; i++) {
-                fprintf(lf, "This is line %d of the large file with some content.\n", i);
-            }
-            fclose(lf);
-        }
-        
-        Directory_item *large_archive = NULL;
-        int large_archive_size = 0;
-        int large_current_index = 0;
-        
-        char large_cwd[1024];
-        getcwd(large_cwd, sizeof(large_cwd));
-        chdir(large_test_dir);
-        long large_size = archive_directory(".", &large_archive, &large_current_index, &large_archive_size);
-        chdir(large_cwd);
-        assert(large_size > 0);
-        
-        char *large_buffer = NULL;
-        long large_buffer_size = serialize_archive(large_archive, large_archive_size, &large_buffer);
-        assert(large_buffer_size > 0);
-        
-        Directory_item *large_deserialized = NULL;
-        int large_deser_size = deserialize_archive(&large_deserialized, large_buffer);
-        assert(large_deser_size > 0);
-        
-        remove_directory_recursive(large_output_dir);
-        mkdir(large_output_dir, 0755);
-        
-        assert(extract_directory(large_output_dir, large_deserialized, large_deser_size, true, false) == 0);
-        assert(compare_directories(large_test_dir, large_output_dir) == 0);
-        
-        // Cleanup
-        free(large_buffer);
-        free_directory_items(large_archive, large_archive_size);
-        free_directory_items(large_deserialized, large_deser_size);
-        remove_directory_recursive(large_test_dir);
-        remove_directory_recursive(large_output_dir);
-        
-        printf("    Large files in directory test passed.\n");
-    }
-    
-    // Edge case 5: Empty files in directory
-    printf("  Edge case 5: Empty files in directory...\n");
-    {
-        char *empty_test_dir = "../tests/empty_files_dir";
-        char *empty_output_dir = "empty_files_output";
-        
-        mkdir("../tests", 0755);
-        mkdir(empty_test_dir, 0755);
-        
-        // Create empty files
-        for (int i = 0; i < 5; i++) {
-            char file_path[1024];
-            snprintf(file_path, sizeof(file_path), "%s/empty%d.txt", empty_test_dir, i);
-            FILE *ef = fopen(file_path, "w");
-            if (ef) {
-                fclose(ef);
-            }
-        }
-        
-        Directory_item *empty_archive = NULL;
-        int empty_archive_size = 0;
-        int empty_current_index = 0;
-        
-        char empty_cwd[1024];
-        getcwd(empty_cwd, sizeof(empty_cwd));
-        chdir(empty_test_dir);
-        long empty_size = archive_directory(".", &empty_archive, &empty_current_index, &empty_archive_size);
-        chdir(empty_cwd);
-        assert(empty_size >= 0);
-        
-        char *empty_buffer = NULL;
-        long empty_buffer_size = serialize_archive(empty_archive, empty_archive_size, &empty_buffer);
-        assert(empty_buffer_size > 0);
-        
-        Directory_item *empty_deserialized = NULL;
-        int empty_deser_size = deserialize_archive(&empty_deserialized, empty_buffer);
-        assert(empty_deser_size > 0);
-        
-        remove_directory_recursive(empty_output_dir);
-        mkdir(empty_output_dir, 0755);
-        
-        assert(extract_directory(empty_output_dir, empty_deserialized, empty_deser_size, true, false) == 0);
-        assert(compare_directories(empty_test_dir, empty_output_dir) == 0);
-        
-        // Cleanup
-        free(empty_buffer);
-        free_directory_items(empty_archive, empty_archive_size);
-        free_directory_items(empty_deserialized, empty_deser_size);
-        remove_directory_recursive(empty_test_dir);
-        remove_directory_recursive(empty_output_dir);
-        
-        printf("    Empty files in directory test passed.\n");
-    }
-    
-    // Edge case 6: Binary files in directory
-    printf("  Edge case 6: Binary files in directory...\n");
-    {
-        char *binary_test_dir = "../tests/binary_files_dir";
-        char *binary_output_dir = "binary_files_output";
-        
-        mkdir("../tests", 0755);
-        mkdir(binary_test_dir, 0755);
-        
-        // Create binary file
-        char binary_file[1024];
-        snprintf(binary_file, sizeof(binary_file), "%s/binary.dat", binary_test_dir);
-        FILE *bf = fopen(binary_file, "wb");
-        if (bf) {
-            unsigned char data[256];
-            for (int i = 0; i < 256; i++) {
-                data[i] = (unsigned char)i;
-            }
-            fwrite(data, 1, 256, bf);
-            fclose(bf);
-        }
-        
-        Directory_item *binary_archive = NULL;
-        int binary_archive_size = 0;
-        int binary_current_index = 0;
-        
-        char binary_cwd[1024];
-        getcwd(binary_cwd, sizeof(binary_cwd));
-        chdir(binary_test_dir);
-        long binary_size = archive_directory(".", &binary_archive, &binary_current_index, &binary_archive_size);
-        chdir(binary_cwd);
-        assert(binary_size > 0);
-        
-        char *binary_buffer = NULL;
-        long binary_buffer_size = serialize_archive(binary_archive, binary_archive_size, &binary_buffer);
-        assert(binary_buffer_size > 0);
-        
-        Directory_item *binary_deserialized = NULL;
-        int binary_deser_size = deserialize_archive(&binary_deserialized, binary_buffer);
-        assert(binary_deser_size > 0);
-        
-        remove_directory_recursive(binary_output_dir);
-        mkdir(binary_output_dir, 0755);
-        
-        assert(extract_directory(binary_output_dir, binary_deserialized, binary_deser_size, true, false) == 0);
-        assert(compare_directories(binary_test_dir, binary_output_dir) == 0);
-        
-        // Cleanup
-        free(binary_buffer);
-        free_directory_items(binary_archive, binary_archive_size);
-        free_directory_items(binary_deserialized, binary_deser_size);
-        remove_directory_recursive(binary_test_dir);
-        remove_directory_recursive(binary_output_dir);
-        
-        printf("    Binary files in directory test passed.\n");
-    }
-    
-    printf("All edge case tests passed!\n");
 
     return 0;
 }

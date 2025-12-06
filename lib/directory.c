@@ -25,7 +25,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     bool is_root = (f == NULL);
     
     if (is_root) {
-        f = fopen(SERIALIZED_TMP_FILE, "ab");
+        f = fopen(SERIALIZED_TMP_FILE, "wb");
         if (f == NULL) {
             return FILE_READ_ERROR;
         }
@@ -265,6 +265,7 @@ int prepare_directory(char *input_file, int *directory_size) {
     int archive_size = 0;
     long data_len = 0;
     int result = 0;
+    FILE *temp_file = NULL;
     
     while (true) {
         if (getcwd(current_path, sizeof(current_path)) == NULL) {
@@ -272,6 +273,7 @@ int prepare_directory(char *input_file, int *directory_size) {
             result = DIRECTORY_ERROR;
             break;
         }
+        
         /* Kulso eleresi ut eseteten athelyezkedunk a szulo mappaba, hogy a tarolt utak relativak maradjanak. */
         if (sep != NULL) {
             if (sep == input_file) {
@@ -303,7 +305,35 @@ int prepare_directory(char *input_file, int *directory_size) {
             }
         }
         
-        long dir_size = archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &data_len, NULL);
+        /* Build absolute path to temp file in original directory */
+        char temp_file_path[PATH_MAX];
+        int path_len = snprintf(temp_file_path, sizeof(temp_file_path), "%s/%s", current_path, SERIALIZED_TMP_FILE);
+        if (path_len >= (int)sizeof(temp_file_path)) {
+            printf("A temp fajl eleresi utja tul hosszu.\n");
+            result = DIRECTORY_ERROR;
+            if (sep != NULL) {
+                if (chdir(current_path) != 0) {
+                    printf("Nem sikerult kilepni a mappabol.\n");
+                }
+            }
+            break;
+        }
+        temp_file = fopen(temp_file_path, "wb");
+        if (temp_file == NULL) {
+            printf("Nem sikerult megnyitni a temp fajlt.\n");
+            result = FILE_WRITE_ERROR;
+            if (sep != NULL) {
+                if (chdir(current_path) != 0) {
+                    printf("Nem sikerult kilepni a mappabol.\n");
+                }
+            }
+            break;
+        }
+        
+        long dir_size = archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &data_len, temp_file);
+        fclose(temp_file);
+        temp_file = NULL;
+        
         if (dir_size < 0) {
             if (dir_size == MALLOC_ERROR) {
                 printf("Nem sikerult lefoglalni a memoriat a mappa archivallasakor.\n");
@@ -338,6 +368,9 @@ int prepare_directory(char *input_file, int *directory_size) {
         break;
     }
     
+    if (temp_file != NULL) {
+        fclose(temp_file);
+    }
     free(parent_dir);
     free(file_name);
     
