@@ -176,6 +176,12 @@ int main(int argc, char* argv[]){
                 return prep_res;
             }
             directory_size = directory_size_int;
+            int read_res = read_raw(SERIALIZED_TMP_FILE, &data);
+            if (read_res < 0) {
+                printf("Nem sikerult beolvasni a szerializalt adatokat.\n");
+                return read_res;
+            }
+            data_len = read_res;
         } else {
             int read_res = read_raw(args.input_file, &data);
             if (read_res < 0) {

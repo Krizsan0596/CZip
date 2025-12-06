@@ -1,7 +1,4 @@
 /.nvim_build_cache
-/bin
-*.odt
-*.pdf
 cmake_install.cmake
 CMakeCache.txt
 CMakeFiles/
@@ -13,8 +10,3 @@ file_io_test
 compress_test
 huffman
 test_compress_decompress
-Felh_dok.md
-Dokumentacio.md
-doksi.md
-_codeql_build_dir/
-_codeql_detected_source_root

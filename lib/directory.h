@@ -4,6 +4,7 @@
 #include "data_types.h"
 #include <stdio.h>
 
+long archive_directory(char *path, int *archive_size, long *data_size, FILE *f);
 long serialize_item(Directory_item *item, FILE *f);
 long deserialize_item(Directory_item *item, FILE *f);
 int extract_directory(char *path, Directory_item *item, bool force, bool no_preserve_perms);
