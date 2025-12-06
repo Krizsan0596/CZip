@@ -182,6 +182,8 @@ int main(int argc, char* argv[]){
                 return read_res;
             }
             data_len = read_res;
+            // Clean up the temporary file after reading
+            remove(SERIALIZED_TMP_FILE);
         } else {
             int read_res = read_raw(args.input_file, &data);
             if (read_res < 0) {
