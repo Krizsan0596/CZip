@@ -462,6 +462,10 @@ int prepare_directory(char *input_file, int *directory_size) {
  * Kitomoriteshez szukseges mappa feldolgozas.
  * Deszerializalja es kitomoriti az archivalt mappakat.
  * Sikeres muveletek eseten 0-t, hiba eseten negativ erteket ad vissza.
+ * 
+ * Megjegyzes: Ez a fuggveny a main.c altal letrehozott SERIALIZED_TMP_FILE fajlt olvassa
+ * a kitomorites soran. Ez kulon kontextus a tomoriteshez kepest, ahol az archive_directory
+ * hozza letre a temp fajlt.
  */
 int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
     int res = 0;
@@ -469,6 +473,7 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
     Directory_item item = {0};
     
     while (true) {
+        /* This reads the temp file created by main.c during extraction, not by archive_directory */
         f = fopen(SERIALIZED_TMP_FILE, "rb");
         if (f == NULL) {
             printf("Nem sikerult megnyitni a szerializalt fajlt.\n");
@@ -529,6 +534,7 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
         }
         
         fclose(f);
+        /* Clean up the temp file created by main.c for this extraction */
         remove(SERIALIZED_TMP_FILE);
         break;
     }
