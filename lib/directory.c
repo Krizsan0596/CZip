@@ -145,14 +145,14 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 dir_size += file.file_size;
                 (*archive_size)++;
                 long serialize_res = serialize_item(&file, f);
-                free(file.file_path);
-                free(file.file_data);
                 if (serialize_res < 0) {
                     result = serialize_res;
                     current_item = file;
                     break;
                 }
                 *data_size += serialize_res;
+                free(file.file_path);
+                free(file.file_data);
             }
             free(newpath);
             newpath = NULL;
