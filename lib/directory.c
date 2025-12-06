@@ -16,6 +16,9 @@
  * Rekurzivan bejarja a mappat es fajlonkent egy tombbe menti az adatokat.
  * Siker eseten a mappa meretet adja vissza bajtokban, hiba eseten negativ kodot.
  */
+/* Static variable to store the base directory for temp file creation */
+static char g_temp_file_base_dir[PATH_MAX] = "";
+
 long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) {
     DIR *directory = NULL;
     long dir_size = 0;
@@ -23,9 +26,17 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     char *newpath = NULL;
     Directory_item current_item = {0};
     bool is_root = (f == NULL);
+    static char temp_file_path[PATH_MAX];
     
     if (is_root) {
-        f = fopen(SERIALIZED_TMP_FILE, "wb");
+        /* Use the base directory set by prepare_directory, or current directory if not set */
+        const char *base_dir = (g_temp_file_base_dir[0] != '\0') ? g_temp_file_base_dir : ".";
+        int path_len = snprintf(temp_file_path, sizeof(temp_file_path), "%s/%s", base_dir, SERIALIZED_TMP_FILE);
+        if (path_len >= (int)sizeof(temp_file_path)) {
+            return DIRECTORY_ERROR;
+        }
+        
+        f = fopen(temp_file_path, "wb");
         if (f == NULL) {
             return FILE_WRITE_ERROR;
         }
@@ -48,7 +59,13 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 break;
             }
             (*archive_size)++;
-            *data_size += serialize_item(&root, f);
+            long serialize_res = serialize_item(&root, f);
+            if (serialize_res < 0) {
+                free(root.dir_path);
+                result = serialize_res;
+                break;
+            }
+            *data_size += serialize_res;
             free(root.dir_path);
         }
 
@@ -90,8 +107,13 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                     break;
                 }
                 (*archive_size)++;
-                *data_size += serialize_item(&subdir, f);
+                long serialize_res = serialize_item(&subdir, f);
                 free(subdir.dir_path);
+                if (serialize_res < 0) {
+                    result = serialize_res;
+                    break;
+                }
+                *data_size += serialize_res;
                 long subdir_size = archive_directory(newpath, archive_size, data_size, f);
                 if (subdir_size < 0) {
                     result = subdir_size;
@@ -122,9 +144,15 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 }
                 dir_size += file.file_size;
                 (*archive_size)++;
-                *data_size += serialize_item(&file, f);
+                long serialize_res = serialize_item(&file, f);
                 free(file.file_path);
                 free(file.file_data);
+                if (serialize_res < 0) {
+                    result = serialize_res;
+                    current_item = file;
+                    break;
+                }
+                *data_size += serialize_res;
             }
             free(newpath);
             newpath = NULL;
@@ -145,9 +173,11 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     }
     free(newpath);
     if (directory != NULL) closedir(directory);
-    if (is_root) fclose(f);
-    if (result < 0 && is_root) {
-        remove(SERIALIZED_TMP_FILE);
+    if (is_root) {
+        fclose(f);
+        if (result < 0) {
+            remove(temp_file_path);
+        }
     }
     return result;
 }
@@ -159,16 +189,31 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
 long serialize_item(Directory_item *item, FILE *f) {
     long data_size = 0;
     long item_size = sizeof(bool) + ((item->is_dir) ? (strlen(item->dir_path) + 1 + sizeof(int)) : (sizeof(long) + strlen(item->file_path) + 1 + item->file_size));
-    data_size += sizeof(long) * fwrite(&item_size, sizeof(long), 1, f);
-    data_size += sizeof(bool) * fwrite(&item->is_dir, sizeof(bool), 1, f);
+    
+    if (fwrite(&item_size, sizeof(long), 1, f) != 1) return FILE_WRITE_ERROR;
+    data_size += sizeof(long);
+    
+    if (fwrite(&item->is_dir, sizeof(bool), 1, f) != 1) return FILE_WRITE_ERROR;
+    data_size += sizeof(bool);
+    
     if (item->is_dir) {
-        data_size += sizeof(int) * fwrite(&item->perms, sizeof(int), 1, f);
-        data_size += sizeof(char) * fwrite(item->dir_path, sizeof(char), strlen(item->dir_path) + 1, f);
+        if (fwrite(&item->perms, sizeof(int), 1, f) != 1) return FILE_WRITE_ERROR;
+        data_size += sizeof(int);
+        
+        size_t path_len = strlen(item->dir_path) + 1;
+        if (fwrite(item->dir_path, sizeof(char), path_len, f) != path_len) return FILE_WRITE_ERROR;
+        data_size += path_len;
     }
     else {
-        data_size += sizeof(long) * fwrite(&item->file_size, sizeof(long), 1, f);
-        data_size += fwrite(item->file_path, sizeof(char), strlen(item->file_path) + 1, f);
-        data_size += fwrite(item->file_data, sizeof(char), item->file_size, f);
+        if (fwrite(&item->file_size, sizeof(long), 1, f) != 1) return FILE_WRITE_ERROR;
+        data_size += sizeof(long);
+        
+        size_t path_len = strlen(item->file_path) + 1;
+        if (fwrite(item->file_path, sizeof(char), path_len, f) != path_len) return FILE_WRITE_ERROR;
+        data_size += path_len;
+        
+        if (item->file_size > 0 && fwrite(item->file_data, sizeof(char), item->file_size, f) != (size_t)item->file_size) return FILE_WRITE_ERROR;
+        data_size += item->file_size;
     }
     return data_size;
 }
@@ -228,34 +273,87 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
 long deserialize_item(Directory_item *item, FILE *f) {
     long archive_size;
     long read_size = 0;
+    
     if (fread(&archive_size, sizeof(long), 1, f) != 1) {
         if (feof(f)) return 0;
         return FILE_READ_ERROR;
     }
     read_size += sizeof(long);
-    read_size += sizeof(bool) * fread(&item->is_dir, sizeof(bool), 1, f);
+    
+    if (fread(&item->is_dir, sizeof(bool), 1, f) != 1) {
+        return FILE_READ_ERROR;
+    }
+    read_size += sizeof(bool);
+    
     if (item->is_dir) {
-        read_size += sizeof(int) * fread(&item->perms, sizeof(int), 1, f);
+        if (fread(&item->perms, sizeof(int), 1, f) != 1) {
+            return FILE_READ_ERROR;
+        }
+        read_size += sizeof(int);
+        
         int path_len = archive_size - sizeof(bool) - sizeof(int);
         item->dir_path = malloc(sizeof(char) * path_len);
         if (item->dir_path == NULL) return MALLOC_ERROR;
-        read_size += sizeof(char) * fread(item->dir_path, sizeof(char), path_len, f);
+        
+        if (fread(item->dir_path, sizeof(char), path_len, f) != (size_t)path_len) {
+            free(item->dir_path);
+            item->dir_path = NULL;
+            return FILE_READ_ERROR;
+        }
+        read_size += path_len;
     }
     else {
-        read_size += sizeof(long) * fread(&item->file_size, sizeof(long), 1, f);
+        if (fread(&item->file_size, sizeof(long), 1, f) != 1) {
+            return FILE_READ_ERROR;
+        }
+        read_size += sizeof(long);
+        
         int path_len = archive_size - sizeof(bool) - sizeof(long) - item->file_size;
         item->file_path = malloc(path_len);
         if (item->file_path == NULL) return MALLOC_ERROR;
-        read_size += sizeof(char) * fread(item->file_path, sizeof(char), path_len, f);
+        
+        if (fread(item->file_path, sizeof(char), path_len, f) != (size_t)path_len) {
+            free(item->file_path);
+            item->file_path = NULL;
+            return FILE_READ_ERROR;
+        }
+        read_size += path_len;
+        
         if (item->file_size > 0) {
             item->file_data = malloc(item->file_size);
-            if (item->file_data == NULL) return MALLOC_ERROR;
-            read_size += sizeof(char) * fread(item->file_data, sizeof(char), item->file_size, f);
+            if (item->file_data == NULL) {
+                free(item->file_path);
+                item->file_path = NULL;
+                return MALLOC_ERROR;
+            }
+            
+            if (fread(item->file_data, sizeof(char), item->file_size, f) != (size_t)item->file_size) {
+                free(item->file_path);
+                free(item->file_data);
+                item->file_path = NULL;
+                item->file_data = NULL;
+                return FILE_READ_ERROR;
+            }
+            read_size += item->file_size;
         } else {
             item->file_data = NULL;
         }
     }
-    if (read_size != archive_size + sizeof(long)) return FILE_READ_ERROR;
+    
+    if (read_size != archive_size + sizeof(long)) {
+        // Clean up allocated memory before returning error
+        if (item->is_dir) {
+            free(item->dir_path);
+            item->dir_path = NULL;
+        } else {
+            free(item->file_path);
+            free(item->file_data);
+            item->file_path = NULL;
+            item->file_data = NULL;
+        }
+        return FILE_READ_ERROR;
+    }
+    
     return archive_size + sizeof(long);
 }
 
@@ -272,7 +370,6 @@ int prepare_directory(char *input_file, int *directory_size) {
     int archive_size = 0;
     long data_len = 0;
     int result = 0;
-    FILE *temp_file = NULL;
     
     while (true) {
         if (getcwd(current_path, sizeof(current_path)) == NULL) {
@@ -280,6 +377,10 @@ int prepare_directory(char *input_file, int *directory_size) {
             result = DIRECTORY_ERROR;
             break;
         }
+        
+        /* Set the base directory for temp file creation */
+        strncpy(g_temp_file_base_dir, current_path, sizeof(g_temp_file_base_dir) - 1);
+        g_temp_file_base_dir[sizeof(g_temp_file_base_dir) - 1] = '\0';
         
         /* Kulso eleresi ut eseteten athelyezkedunk a szulo mappaba, hogy a tarolt utak relativak maradjanak. */
         if (sep != NULL) {
@@ -312,34 +413,7 @@ int prepare_directory(char *input_file, int *directory_size) {
             }
         }
         
-        /* Build absolute path to temp file in original directory */
-        char temp_file_path[PATH_MAX];
-        int path_len = snprintf(temp_file_path, sizeof(temp_file_path), "%s/%s", current_path, SERIALIZED_TMP_FILE);
-        if (path_len >= (int)sizeof(temp_file_path)) {
-            printf("A temp fajl eleresi utja tul hosszu.\n");
-            result = DIRECTORY_ERROR;
-            if (sep != NULL) {
-                if (chdir(current_path) != 0) {
-                    printf("Nem sikerult kilepni a mappabol.\n");
-                }
-            }
-            break;
-        }
-        temp_file = fopen(temp_file_path, "wb");
-        if (temp_file == NULL) {
-            printf("Nem sikerult megnyitni a temp fajlt.\n");
-            result = FILE_WRITE_ERROR;
-            if (sep != NULL) {
-                if (chdir(current_path) != 0) {
-                    printf("Nem sikerult kilepni a mappabol.\n");
-                }
-            }
-            break;
-        }
-        
-        long dir_size = archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &data_len, temp_file);
-        fclose(temp_file);
-        temp_file = NULL;
+        long dir_size = archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &data_len, NULL);
         
         if (dir_size < 0) {
             if (dir_size == MALLOC_ERROR) {
@@ -359,9 +433,6 @@ int prepare_directory(char *input_file, int *directory_size) {
                     result = DIRECTORY_ERROR;
                 }
             }
-            if (temp_file_path != NULL) {
-                remove(temp_file_path);
-            }
             break;
         }
         
@@ -378,9 +449,9 @@ int prepare_directory(char *input_file, int *directory_size) {
         break;
     }
     
-    if (temp_file != NULL) {
-        fclose(temp_file);
-    }
+    /* Clear the global temp file base directory */
+    g_temp_file_base_dir[0] = '\0';
+    
     free(parent_dir);
     free(file_name);
     
