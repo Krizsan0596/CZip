@@ -11,7 +11,7 @@
 #include "directory.h"
 #include "debugmalloc.h"
 
-// Segedfuggveny a qsort rendezeshez
+// Helper for sorting with qsort.
 static int compare_nodes(const void *a, const void *b) {
     long freq_a = ((Node*)a)->frequency;
     long freq_b = ((Node*)b)->frequency;
@@ -20,14 +20,14 @@ static int compare_nodes(const void *a, const void *b) {
     return 0;
 }
 
- // A nodes tombot gyakorisag alapjan rendezi, hogy a Huffman fa felepitese konnyebb legyen.
+// Sorts the nodes array by frequency to simplify building the Huffman tree.
 void sort_nodes(Node *nodes, int len) {
     qsort(nodes, len, sizeof(Node), compare_nodes);
 }
 
 /*
- * Vegigmegy a nyers adaton, es helyben noveli a 256 elemu frekvenciatomb ertekeit.
- * 0-val ter vissza, miutan minden bajtot feldolgozott. A hivotol kapott frequencies tomb nullazott kell legyen.
+ * Iterates through the raw data and increments the 256-element frequency array in place.
+ * Returns 0 after processing every byte; the caller must supply a zeroed frequencies array.
  */
 int count_frequencies(char *data, long data_len, long *frequencies) {
     for (int i = 0; i < data_len; i++){
@@ -37,8 +37,8 @@ int count_frequencies(char *data, long data_len, long *frequencies) {
 }
 
 /*
- * Elkesziti a kimeneti fajl nevet: ha van kiterjesztes, kicsereli .huff-ra, kulonben hozzaadja.
- * Siker eseten lefoglalt karakterlancot ad vissza, hiba eseten NULL-t.
+ * Builds the output file name: replaces the extension with .huff if present, otherwise appends it.
+ * Returns an allocated string on success or NULL on failure.
  */
 char* generate_output_file(char *input_file){
     char *dir_end = strrchr(input_file, '/');
@@ -69,7 +69,7 @@ char* generate_output_file(char *input_file){
     return out;
 }
 
-// Letrehoz egy levelet, amelyben a bajt es a hozza tartozo gyakorisag tarolodik.
+// Creates a leaf that stores the byte and its associated frequency.
 Node construct_leaf(long frequency, char data) {
     Node leaf = {0};
     leaf.type = LEAF;
@@ -79,8 +79,8 @@ Node construct_leaf(long frequency, char data) {
 }
 
 /*
- * Osszeallit egy csomopontot, amely a tombben tarolt 2 gyerekenek az indexet tarolja.
- * A gyerekek gyakorisaganak osszege lesz ennek a gyakorisaga a Huffman algoritmus szerint.
+ * Builds a branch node that stores the indices of its two children in the array.
+ * Per Huffman rules, its frequency is the sum of the children's frequencies.
  */
 Node construct_branch(Node *nodes, int left_index, int right_index) {
     Node branch = {0};
@@ -92,9 +92,9 @@ Node construct_branch(Node *nodes, int left_index, int right_index) {
 }
 
 /*
- * Osszevonja a rendezett leveleket, es Huffman fat epit beloluk.
- * A gyokerre mutato pointert adja vissza, vagy NULL-t, ha nincs egyetlen level sem.
- * A keszitett csomopontokat a levelek utan rakja sorrendbe, igy mindig rendezett lesz a lista. 
+ * Merges the sorted leaves to build a Huffman tree.
+ * Returns a pointer to the root or NULL if there are no leaves.
+ * Places created branches after the leaves to keep the list ordered.
  */
 Node* construct_tree(Node *nodes, long leaf_count) { // nodes is sorted
     if (leaf_count <= 0) return NULL;
@@ -127,8 +127,8 @@ Node* construct_tree(Node *nodes, long leaf_count) { // nodes is sorted
 }
 
 /*
- * Megnezi, hogy a keresett bajt helye a Huffman faban mar megtalalhato-e a cache tombben.
- * Ha van talalat, visszaadja a karakterlancot, kulonben NULL-t ad vissza.
+ * Checks whether the sought byte's path in the Huffman tree is already cached.
+ * Returns the path string if present, otherwise NULL.
  */
 char* check_cache(char leaf, char **cache) {
     if (cache[(unsigned char) leaf] != NULL) return cache[(unsigned char) leaf];
@@ -136,7 +136,7 @@ char* check_cache(char leaf, char **cache) {
 }
 
 /*
- * Rekurzivan bejarja a Huffman fat, megkeresi a bajt helyet es osszerakja az utvonalat.
+ * Recursively traverses the Huffman tree, finds the byte's position, and builds the path.
  */
 char* find_leaf(char leaf, Node *nodes, Node *root_node) {
     char *path = NULL; 
@@ -176,9 +176,9 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
 
 
 /*
- * Vegigjarja a Huffman fat, es a kapott adatot tomoritett bitfolyamabba kodolja.
- * A kitomoriteshez szukseges adatokat betolti egy Compressed_file strukturaba.
- * 0-t ad vissza siker eseten, negativ ertekeket memoriafoglalasi vagy fa-bejarasi hiba eseten.
+ * Walks the Huffman tree and encodes the data into a compressed bitstream.
+ * Loads the data needed for decompression into a Compressed_file structure.
+ * Returns 0 on success or a negative value for allocation or traversal errors.
  */
 int compress(char *original_data, long data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
     if (data_len == 0) {
@@ -230,14 +230,13 @@ int compress(char *original_data, long data_len, Node *nodes, Node *root_node, c
         total_bits += bit_count;
     }
 
-    /* Specialis eset: ha csak egyedi karakter van, a fa melysege 0,
-     * ezert nem keletkezne egyetlen bit sem. Minden karakterhez irunk
-     * egy 0 bitet, hogy a hosszt taroljuk. */
+    /* Special case: if only a single unique character exists, the tree depth is 0,
+     * so no bits would be generated. Write a 0 bit for each character to record the length. */
     if (total_bits == 0 && data_len > 0) {
         buffer = 0;
         bit_count = 0;
         for (long i = 0; i < data_len; i++) {
-            // 0 bitet irunk (nem allitunk be bitet a bufferben)
+            // Write a 0 bit (do not set a bit in the buffer)
             bit_count++;
             if (bit_count == 8) {
                 compressed_file->compressed_data[total_bits / 8] = buffer;
@@ -264,13 +263,12 @@ int compress(char *original_data, long data_len, Node *nodes, Node *root_node, c
 }
 
 /*
- * A mar elokeszitett nyers adatot felhasznalva felepit egy Huffman fat es kiirja a tomoritett adatot.
- * A hivas elott gondoskodni kell a nyers adat eloallitasarol (fajl beolvasas, mappa szerializacio).
- * A mappat jelzo modot az args.directory mezobol olvassa ki. Siker eseten 0-t, hiba eseten
- * negativ hibakodot ad vissza.
+ * Uses the prepared raw data to build a Huffman tree and write the compressed output.
+ * The caller must supply the raw data beforehand (file read, directory serialization).
+ * Reads directory mode from args.directory. Returns 0 on success or a negative error code.
  */
 int run_compression(Arguments args, char *data, long data_len, long directory_size) {
-    // Ha nem adott meg kimeneti fajlt a felhasznalo, general egyet.
+    // If the user did not provide an output file, generate one.
     bool output_generated = false;
     if (args.output_file == NULL) {
         output_generated = true;
@@ -289,9 +287,9 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
     char **cache = NULL;
     int res = 0;
     
-    // A while ciklusbol a vegen garantaltan ki break-elunk, de ha hiba tortenik, akkor a vegare ugrunk.
+    // The loop always breaks at the end; on errors we jump to the end.
     while (true) {
-        // Megszamolja a bemeneti adat bajtjainak gyakorisagat.
+        // Count the frequency of each byte in the input data.
         frequencies = calloc(256, sizeof(long));
         if (frequencies == NULL) {
             fprintf(stderr, "Failed to allocate memory.\n");
@@ -330,7 +328,7 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         free(frequencies);
         frequencies = NULL;
 
-        // Felepiti a Huffman fat a rendezett levelek tombjebol. 
+        // Build the Huffman tree from the sorted leaves.
         sort_nodes(nodes, leaf_count);
         Node *root_node = construct_tree(nodes, leaf_count);
 
@@ -354,7 +352,7 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
             res = MALLOC_ERROR;
             break;
         }
-        // Tomoriti a beolvasott adatokat a compressed_file strukturaba.
+        // Compress the read data into the compressed_file structure.
         int compress_res = compress(data, data_len, nodes, root_node, cache, compressed_file);
         if (compress_res != 0) {
             fprintf(stderr, "Failed to compress.\n");

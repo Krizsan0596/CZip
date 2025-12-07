@@ -10,9 +10,9 @@
 #include "directory.h"
 
 /*
- * A Huffman fat bejarva ujra eloallitja az eredeti adatokat bitrol bitre.
- * A tomoritett bufferbol olvas, es a kitomoritett bajtokat a hivo altal adott tombbe irja.
- * Sikeres kitomorites eseten 0-t, hibak eseten negativ szamokat ad vissza.
+ * Traverses the Huffman tree to recreate the original data bit by bit.
+ * Reads from the compressed buffer and writes the decompressed bytes into the caller-provided array.
+ * Returns 0 on success or a negative value on failure.
  */
 int decompress(Compressed_file *compressed, char *raw) {
     long root_index = (compressed->tree_size / sizeof(Node)) - 1;
@@ -24,7 +24,7 @@ int decompress(Compressed_file *compressed, char *raw) {
     long current_node = root_index;
     long current_raw = 0;
 
-    // Ellenorzi, hogy a gyoker level-e (egyetlen egyedi karakter esete).
+    // Check whether the root is a leaf (the single unique character case).
     bool root_is_leaf = (compressed->huffman_tree[root_index].type == LEAF);
 
     unsigned char buffer = 0;
@@ -37,7 +37,7 @@ int decompress(Compressed_file *compressed, char *raw) {
             buffer = compressed->compressed_data[i / 8];
         }
 
-        // Ha a gyoker level, minden bit ugyanazt a karaktert adja vissza.
+        // If the root is a leaf, every bit yields the same character.
         if (root_is_leaf) {
             raw[current_raw++] = compressed->huffman_tree[root_index].data;
         } else {
@@ -58,10 +58,9 @@ int decompress(Compressed_file *compressed, char *raw) {
 }
 
 /*
- * Beolvassa a tomoritett fajlt, dekodolja a Huffman adatokat es visszaadja a nyers tartalmat.
- * A kimenet feldolgozasarol (fajl iras, mappa visszaallitasa) a hivo gondoskodik. A ki-
- * menetkent adott pointereknek ervenyes, nem NULL ertekeknek kell lenniuk, mert a hivo
- * (a fo orchestracio) szallitja oket.
+ * Reads the compressed file, decodes the Huffman data, and returns the raw content.
+ * The caller handles further processing of the output (writing files, restoring directories). The
+ * output pointers must be valid, non-NULL values supplied by the caller orchestrating the process.
  */
 int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_directory, char **original_name) {
     *raw_data = NULL;

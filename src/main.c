@@ -13,8 +13,8 @@
 #include "../lib/debugmalloc.h"
 
 /*
- * Kiirja a program hasznalati utasitasat.
- * Segitseg vagy ervenytelen kapcsolok eseten hivjuk meg.
+ * Prints program usage instructions.
+ * Called for help requests or invalid options.
  */
 static void print_usage(const char *prog_name) {
     const char *usage =
@@ -36,8 +36,8 @@ static void print_usage(const char *prog_name) {
 }
 
 /* 
- * Parancssori opciok feldolgozasa: egy mod valaszthato, az -o a kimenetet, az -f a felulirast kezeli.
- * Az elso nem kapcsolos argumentum lesz a bemeneti fajl.
+ * Processes command-line options: only one mode is allowed; -o sets the output, -f controls overwrite.
+ * The first non-flag argument becomes the input file.
  */
 int parse_arguments(int argc, char* argv[], Arguments *args) {
     args->compress_mode = false;
@@ -99,8 +99,8 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
     }
 
     /*
-     * Ellenorizzuk, hogy megadtak-e a bemeneti fajlt, majd leellenorizzuk, hogy letezik-e.
-     * Ha nem, kilepunk a programbol. A stat()-ot hasznaljuk, mert az fopen() nem mukodik mappakon.
+     * Ensure an input file was provided, then verify it exists.
+     * Uses stat() because fopen() does not work on directories.
      */
     if (args->input_file == NULL) {
         fprintf(stderr, "No input file was provided.\n");
@@ -125,7 +125,7 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
 }
 
 /*
- * A kapcsolokat feldolgozva elinditja a tomorites vagy kitomorites folyamatat, es a hibakodot adja vissza.
+ * After processing options, starts compression or decompression and returns the error code.
  */
 int main(int argc, char* argv[]){
     Arguments args;
@@ -140,7 +140,7 @@ int main(int argc, char* argv[]){
         return parse_result;
     }
 
-    /* Ellenorizzuk, hogy az -r valoban mappat jelol, vagy hibasan lett megadva. */
+    /* Verify that -r truly points to a directory, or disable it if misused. */
     if (args.directory) {
         struct stat st;
         int ret = stat(args.input_file, &st);

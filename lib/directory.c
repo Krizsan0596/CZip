@@ -13,8 +13,8 @@
 #include <limits.h>
 
 /*
- * Rekurzivan bejarja a mappat es fajlonkent egy tombbe menti az adatokat.
- * Siker eseten a mappa meretet adja vissza bajtokban, hiba eseten negativ kodot.
+ * Recursively walks the directory and stores each file's data in an array.
+ * Returns the directory size in bytes on success or a negative code on failure.
  */
 long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) {
     DIR *directory = NULL;
@@ -24,7 +24,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     Directory_item current_item = {0};
     
     while (true) {
-        /* Az elso hivaskor felvesszuk a gyoker mappat az archivumba, hogy a relativ utak megmaradjanak. */
+        /* On the first call, add the root directory to the archive so relative paths are preserved. */
         if (*archive_size == 0) {
             struct stat root_st;
             if (stat(path, &root_st) != 0) {
@@ -159,8 +159,8 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
 }
 
 /*
- * Szerializalja az archivalt mappa elemet egy bufferbe.
- * Siker eseten a buffer meretet adja vissza, hiba eseten negativ kodot.
+ * Serializes an archived directory element into a buffer.
+ * Returns the buffer size on success or a negative code on failure.
  */
 long serialize_item(Directory_item *item, FILE *f) {
     long data_size = 0;
@@ -212,8 +212,8 @@ long serialize_item(Directory_item *item, FILE *f) {
 
 
 /*
- * Kicsomagolja az archivalt mappat a megadott utvonalra, letrehozza a mappakat es fajlokat.
- * Siker eseten 0-t ad vissza, hiba eseten negativ kodot.
+ * Extracts the archived directory to the given path, creating directories and files as needed.
+ * Returns 0 on success or a negative code on failure.
  */
 int extract_directory(char *path, Directory_item *item, bool force, bool no_preserve_perms) {
     if (path == NULL) path = ".";
@@ -221,7 +221,7 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
     char *full_path = malloc(strlen(path) + strlen(item_path) + 2);
     if (full_path == NULL) return MALLOC_ERROR;
 
-    /* Ha a felhasznalo adott kimeneti mappat, akkor ott kezdjuk a mappa felepiteset. */
+    /* If the user provided an output directory, start building the structure there. */
     strcpy(full_path, path);
     strcat(full_path, "/");
     strcat(full_path, item_path);
@@ -259,8 +259,8 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
 }
 
 /*
- * Visszaalakitja a szerializalt bufferbol az archivum tombot.
- * Siker eseten az archivum meretet adja vissza, hiba eseten negativ kodot.
+ * Reconstructs the archive array from the serialized buffer.
+ * Returns the archive size on success or a negative code on failure.
  */
 long deserialize_item(Directory_item *item, FILE *f) {
     long archive_size;
@@ -346,9 +346,9 @@ long deserialize_item(Directory_item *item, FILE *f) {
 }
 
 /*
- * Tomoriteshez szukseges mappa feldolgozas.
- * Bejarja a mappat, archivalja es szerializalja az adatokat a temp fajlba.
- * Sikeres muveletek eseten 0-t ad vissza, hiba eseten negativ erteket.
+ * Prepares a directory for compression.
+ * Walks the directory, archives it, and serializes the data into a temporary file.
+ * Returns 0 on success or a negative value on failure.
  */
 int prepare_directory(char *input_file, int *directory_size) {
     char current_path[PATH_MAX];
@@ -367,7 +367,7 @@ int prepare_directory(char *input_file, int *directory_size) {
             break;
         }
         
-        /* Kulso eleresi ut eseteten athelyezkedunk a szulo mappaba, hogy a tarolt utak relativak maradjanak. */
+        /* For external paths, switch to the parent directory so stored paths remain relative. */
         if (sep != NULL) {
             if (sep == input_file) {
                 parent_dir = strdup("/");
@@ -438,7 +438,7 @@ int prepare_directory(char *input_file, int *directory_size) {
                 fprintf(stderr, "Failed to archive the directory.\n");
             }
             result = dir_size;
-            /* Visszalepunk az eredeti mappaba hibaeseten is. */
+            /* Return to the original directory even when an error occurs. */
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
                     fprintf(stderr, "Failed to exit the directory.\n");
@@ -451,7 +451,7 @@ int prepare_directory(char *input_file, int *directory_size) {
         
         *directory_size = (int)dir_size;
         
-        /* Visszalepunk az eredeti mappaba. */
+        /* Return to the original directory. */
         if (sep != NULL) {
             if (chdir(current_path) != 0) {
                 fprintf(stderr, "Failed to exit the directory.\n");
@@ -472,9 +472,9 @@ int prepare_directory(char *input_file, int *directory_size) {
 }
 
 /*
- * Kitomoriteshez szukseges mappa feldolgozas.
- * Deszerializalja es kitomoriti az archivalt mappakat.
- * Sikeres muveletek eseten 0-t, hiba eseten negativ erteket ad vissza.
+ * Handles directory processing for extraction.
+ * Deserializes and extracts the archived directories.
+ * Returns 0 on success or a negative value on failure.
  */
 int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
     int res = 0;
