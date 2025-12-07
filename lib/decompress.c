@@ -75,7 +75,7 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
     while (true) {
         compressed_file = calloc(1, sizeof(Compressed_file));
         if (compressed_file == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             res = ENOMEM;
             break;
         }
@@ -83,37 +83,37 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         int read_res = read_compressed(args.input_file, compressed_file);
         if (read_res != 0) {
             if (read_res == FILE_MAGIC_ERROR) {
-                printf("A tomoritett fajl (%s) serult, nem sikerult beolvasni.\n", args.input_file);
+                fprintf(stderr, "A tomoritett fajl (%s) serult, nem sikerult beolvasni.\n", args.input_file);
                 res = EBADF;
             } else if (read_res == MALLOC_ERROR) {
-                printf("Nem sikerult lefoglalni a memoriat.\n");
+                fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
                 res = ENOMEM;
             } else if (read_res == FILE_READ_ERROR) {
-                printf("Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
+                fprintf(stderr, "Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
                 res = EIO;
             } else {
-                printf("Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
+                fprintf(stderr, "Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
                 res = EIO;
             }
             break;
         }
 
         if (compressed_file->original_size <= 0) {
-            printf("A tomoritett fajl (%s) serult, nem sikerult beolvasni.\n", args.input_file);
+            fprintf(stderr, "A tomoritett fajl (%s) serult, nem sikerult beolvasni.\n", args.input_file);
             res = EINVAL;
             break;
         }
 
         *raw_data = malloc(compressed_file->original_size * sizeof(char));
         if (*raw_data == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             res = ENOMEM;
             break;
         }
 
         int decompress_result = decompress(compressed_file, *raw_data);
         if (decompress_result != 0) {
-            printf("Nem sikerult a kitomorites.\n");
+            fprintf(stderr, "Nem sikerult a kitomorites.\n");
             res = EIO;
             break;
         }
@@ -122,7 +122,7 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         *is_directory = compressed_file->is_dir;
         *original_name = strdup(compressed_file->original_file);
         if (*original_name == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             res = ENOMEM;
             break;
         }

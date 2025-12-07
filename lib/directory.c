@@ -362,7 +362,7 @@ int prepare_directory(char *input_file, int *directory_size) {
     
     while (true) {
         if (getcwd(current_path, sizeof(current_path)) == NULL) {
-            printf("Nem sikerult elmenteni az utat.\n");
+            fprintf(stderr, "Nem sikerult elmenteni az utat.\n");
             result = DIRECTORY_ERROR;
             break;
         }
@@ -392,7 +392,7 @@ int prepare_directory(char *input_file, int *directory_size) {
                 break;
             }
             if (chdir(parent_dir) != 0) {
-                printf("Nem sikerult belepni a mappaba.\n");
+                fprintf(stderr, "Nem sikerult belepni a mappaba.\n");
                 result = DIRECTORY_ERROR;
                 break;
             }
@@ -402,22 +402,22 @@ int prepare_directory(char *input_file, int *directory_size) {
         char temp_file_path[PATH_MAX];
         int path_len = snprintf(temp_file_path, sizeof(temp_file_path), "%s/%s", current_path, SERIALIZED_TMP_FILE);
         if (path_len >= (int)sizeof(temp_file_path)) {
-            printf("A temp fajl eleresi utja tul hosszu.\n");
+            fprintf(stderr, "A temp fajl eleresi utja tul hosszu.\n");
             result = DIRECTORY_ERROR;
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    printf("Nem sikerult kilepni a mappabol.\n");
+                    fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
                 }
             }
             break;
         }
         temp_file = fopen(temp_file_path, "wb");
         if (temp_file == NULL) {
-            printf("Nem sikerult megnyitni a temp fajlt.\n");
+            fprintf(stderr, "Nem sikerult megnyitni a temp fajlt.\n");
             result = FILE_WRITE_ERROR;
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    printf("Nem sikerult kilepni a mappabol.\n");
+                    fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
                 }
             }
             break;
@@ -429,19 +429,19 @@ int prepare_directory(char *input_file, int *directory_size) {
         
         if (dir_size < 0) {
             if (dir_size == MALLOC_ERROR) {
-                printf("Nem sikerult lefoglalni a memoriat a mappa archivallasakor.\n");
+                fprintf(stderr, "Nem sikerult lefoglalni a memoriat a mappa archivallasakor.\n");
             } else if (dir_size == DIRECTORY_OPEN_ERROR) {
-                printf("Nem sikerult megnyitni a mappat.\n");
+                fprintf(stderr, "Nem sikerult megnyitni a mappat.\n");
             } else if (dir_size == FILE_READ_ERROR) {
-                printf("Nem sikerult beolvasni egy fajlt a mappabol.\n");
+                fprintf(stderr, "Nem sikerult beolvasni egy fajlt a mappabol.\n");
             } else {
-                printf("Nem sikerult a mappa archivallasa.\n");
+                fprintf(stderr, "Nem sikerult a mappa archivallasa.\n");
             }
             result = dir_size;
             /* Visszalepunk az eredeti mappaba hibaeseten is. */
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    printf("Nem sikerult kilepni a mappabol.\n");
+                    fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
                     result = DIRECTORY_ERROR;
                 }
             }
@@ -454,7 +454,7 @@ int prepare_directory(char *input_file, int *directory_size) {
         /* Visszalepunk az eredeti mappaba. */
         if (sep != NULL) {
             if (chdir(current_path) != 0) {
-                printf("Nem sikerult kilepni a mappabol.\n");
+                fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
                 result = DIRECTORY_ERROR;
                 break;
             }
@@ -484,14 +484,14 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
     while (true) {
         f = fopen(SERIALIZED_TMP_FILE, "rb");
         if (f == NULL) {
-            printf("Nem sikerult megnyitni a szerializalt fajlt.\n");
+            fprintf(stderr, "Nem sikerult megnyitni a szerializalt fajlt.\n");
             res = FILE_READ_ERROR;
             break;
         }
         
         if (output_file != NULL) {
             if (mkdir(output_file, 0755) != 0 && errno != EEXIST) {
-                printf("Nem sikerult letrehozni a kimeneti mappat.\n");
+                fprintf(stderr, "Nem sikerult letrehozni a kimeneti mappat.\n");
                 res = MKDIR_ERROR;
                 fclose(f);
                 break;
@@ -503,9 +503,9 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
             long bytes_read = deserialize_item(&item, f);
             if (bytes_read < 0) {
                 if (bytes_read == MALLOC_ERROR) {
-                    printf("Nem sikerult lefoglalni a memoriat a beolvasaskor.\n");
+                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat a beolvasaskor.\n");
                 } else {
-                    printf("Nem sikerult a tomoritett mappa beolvasasa.\n");
+                    fprintf(stderr, "Nem sikerult a tomoritett mappa beolvasasa.\n");
                 }
                 res = bytes_read;
                 // Free any memory allocated in item before breaking
@@ -530,13 +530,13 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
             
             if (ret != 0) {
                 if (ret == MKDIR_ERROR) {
-                    printf("Nem sikerult letrehozni egy mappat a kitomoriteskor.\n");
+                    fprintf(stderr, "Nem sikerult letrehozni egy mappat a kitomoriteskor.\n");
                 } else if (ret == FILE_WRITE_ERROR) {
-                    printf("Nem sikerult kiirni egy fajlt a kitomoriteskor.\n");
+                    fprintf(stderr, "Nem sikerult kiirni egy fajlt a kitomoriteskor.\n");
                 } else if (ret == MALLOC_ERROR) {
-                    printf("Nem sikerult lefoglalni a memoriat.\n");
+                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
                 } else {
-                    printf("Nem sikerult a mappa kitomoritese.\n");
+                    fprintf(stderr, "Nem sikerult a mappa kitomoritese.\n");
                 }
                 res = ret;
                 break;

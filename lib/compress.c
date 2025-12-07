@@ -276,7 +276,7 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         output_generated = true;
         args.output_file = generate_output_file(args.input_file);
         if (args.output_file == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             return ENOMEM;
         }
     }
@@ -294,7 +294,7 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         // Megszamolja a bemeneti adat bajtjainak gyakorisagat.
         frequencies = calloc(256, sizeof(long));
         if (frequencies == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             res = MALLOC_ERROR;
             break;
         }
@@ -308,14 +308,14 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         }
 
         if (leaf_count == 0) {
-            printf("A fajl (%s) ures.\n", args.input_file);
+            fprintf(stderr, "A fajl (%s) ures.\n", args.input_file);
             res = SUCCESS;
             break;
         }
 
         nodes = malloc((2 * leaf_count - 1) * sizeof(Node));
         if (nodes == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             res = MALLOC_ERROR;
             break;
         }
@@ -337,27 +337,27 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         if (root_node != NULL) {
             tree_size = (root_node - nodes) + 1;
         } else {
-            printf("Nem sikerult a Huffman fa felepitese.\n");
+            fprintf(stderr, "Nem sikerult a Huffman fa felepitese.\n");
             res = TREE_ERROR;
             break;
         }
         cache = calloc(256, sizeof(char *));
         if (cache == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             res = MALLOC_ERROR;
             break;
         }
 
         compressed_file = malloc(sizeof(Compressed_file));
         if (compressed_file == NULL) {
-            printf("Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
             res = MALLOC_ERROR;
             break;
         }
         // Tomoriti a beolvasott adatokat a compressed_file strukturaba.
         int compress_res = compress(data, data_len, nodes, root_node, cache, compressed_file);
         if (compress_res != 0) {
-            printf("Nem sikerult a tomorites.\n");
+            fprintf(stderr, "Nem sikerult a tomorites.\n");
             res = compress_res;
             break;
         }
@@ -372,19 +372,19 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         write_res = write_compressed(compressed_file, args.force);
         if (write_res < 0) {
             if (write_res == NO_OVERWRITE) {
-                printf("A fajlt nem irtam felul, nem tortent meg a tomorites.\n");
+                fprintf(stderr, "A fajlt nem irtam felul, nem tortent meg a tomorites.\n");
                 write_res = ECANCELED;
             } else if (write_res == MALLOC_ERROR) {
-                printf("Nem sikerult lefoglalni a memoriat.\n");
+                fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
                 write_res = ENOMEM;
             } else if (write_res == FILE_WRITE_ERROR) {
-                printf("Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
+                fprintf(stderr, "Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
                 write_res = EIO;
             } else if (write_res == SCANF_FAILED) {
-                printf("Nem sikerult beolvasni a valaszt.\n");
+                fprintf(stderr, "Nem sikerult beolvasni a valaszt.\n");
                 write_res = EIO;
             } else {
-                printf("Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
+                fprintf(stderr, "Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
                 write_res = EIO;
             }
         }
