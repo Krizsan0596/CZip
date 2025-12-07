@@ -28,7 +28,7 @@ static void print_usage(const char *prog_name) {
         "\t-h                        Show this guide.\n"
         "\t-f                        Overwrite OUTPUT_FILE without asking if it exists.\n"
         "\t-r                        Recursively compress a directory (only needed for compression).\n"
-        "\t-P, --no-preserve-perms   When extracting, apply stored permissions to created directories as well.\n"
+        "\t-P, --no-preserve-perms   When extracting, apply stored permissions even to existing directories.\n"
         "\tINPUT_FILE: Path to the file to compress or restore.\n"
         "\tThe -c and -x options are mutually exclusive.";
 
@@ -191,8 +191,6 @@ int main(int argc, char* argv[]){
             if (read_res < 0) {
                 if (read_res == MALLOC_ERROR) {
                     fprintf(stderr, "Failed to allocate memory.\n");
-                } else if (read_res == FILE_READ_ERROR) {
-                    fprintf(stderr, "Failed to read the serialized data.\n");
                 } else {
                     fprintf(stderr, "Failed to read the serialized data.\n");
                 }

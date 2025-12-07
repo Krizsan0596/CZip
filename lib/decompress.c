@@ -87,9 +87,6 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
             } else if (read_res == MALLOC_ERROR) {
                 fprintf(stderr, "Failed to allocate memory.\n");
                 res = ENOMEM;
-            } else if (read_res == FILE_READ_ERROR) {
-                fprintf(stderr, "Failed to read the compressed file (%s).\n", args.input_file);
-                res = EIO;
             } else {
                 fprintf(stderr, "Failed to read the compressed file (%s).\n", args.input_file);
                 res = EIO;
