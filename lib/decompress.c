@@ -75,7 +75,7 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
     while (true) {
         compressed_file = calloc(1, sizeof(Compressed_file));
         if (compressed_file == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             res = ENOMEM;
             break;
         }
@@ -83,37 +83,37 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         int read_res = read_compressed(args.input_file, compressed_file);
         if (read_res != 0) {
             if (read_res == FILE_MAGIC_ERROR) {
-                fprintf(stderr, "A tomoritett fajl (%s) serult, nem sikerult beolvasni.\n", args.input_file);
+                fprintf(stderr, "The compressed file (%s) is corrupted and could not be read.\n", args.input_file);
                 res = EBADF;
             } else if (read_res == MALLOC_ERROR) {
-                fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+                fprintf(stderr, "Failed to allocate memory.\n");
                 res = ENOMEM;
             } else if (read_res == FILE_READ_ERROR) {
-                fprintf(stderr, "Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
+                fprintf(stderr, "Failed to read the compressed file (%s).\n", args.input_file);
                 res = EIO;
             } else {
-                fprintf(stderr, "Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
+                fprintf(stderr, "Failed to read the compressed file (%s).\n", args.input_file);
                 res = EIO;
             }
             break;
         }
 
         if (compressed_file->original_size <= 0) {
-            fprintf(stderr, "A tomoritett fajl (%s) serult, nem sikerult beolvasni.\n", args.input_file);
+            fprintf(stderr, "The compressed file (%s) is corrupted and could not be read.\n", args.input_file);
             res = EINVAL;
             break;
         }
 
         *raw_data = malloc(compressed_file->original_size * sizeof(char));
         if (*raw_data == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             res = ENOMEM;
             break;
         }
 
         int decompress_result = decompress(compressed_file, *raw_data);
         if (decompress_result != 0) {
-            fprintf(stderr, "Nem sikerult a kitomorites.\n");
+            fprintf(stderr, "Failed to decompress.\n");
             res = EIO;
             break;
         }
@@ -122,7 +122,7 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         *is_directory = compressed_file->is_dir;
         *original_name = strdup(compressed_file->original_file);
         if (*original_name == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             res = ENOMEM;
             break;
         }

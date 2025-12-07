@@ -276,7 +276,7 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         output_generated = true;
         args.output_file = generate_output_file(args.input_file);
         if (args.output_file == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             return ENOMEM;
         }
     }
@@ -294,7 +294,7 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         // Megszamolja a bemeneti adat bajtjainak gyakorisagat.
         frequencies = calloc(256, sizeof(long));
         if (frequencies == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             res = MALLOC_ERROR;
             break;
         }
@@ -308,14 +308,14 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         }
 
         if (leaf_count == 0) {
-            fprintf(stderr, "A fajl (%s) ures.\n", args.input_file);
+            fprintf(stderr, "The file (%s) is empty.\n", args.input_file);
             res = SUCCESS;
             break;
         }
 
         nodes = malloc((2 * leaf_count - 1) * sizeof(Node));
         if (nodes == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             res = MALLOC_ERROR;
             break;
         }
@@ -337,27 +337,27 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         if (root_node != NULL) {
             tree_size = (root_node - nodes) + 1;
         } else {
-            fprintf(stderr, "Nem sikerult a Huffman fa felepitese.\n");
+            fprintf(stderr, "Failed to build the Huffman tree.\n");
             res = TREE_ERROR;
             break;
         }
         cache = calloc(256, sizeof(char *));
         if (cache == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             res = MALLOC_ERROR;
             break;
         }
 
         compressed_file = malloc(sizeof(Compressed_file));
         if (compressed_file == NULL) {
-            fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+            fprintf(stderr, "Failed to allocate memory.\n");
             res = MALLOC_ERROR;
             break;
         }
         // Tomoriti a beolvasott adatokat a compressed_file strukturaba.
         int compress_res = compress(data, data_len, nodes, root_node, cache, compressed_file);
         if (compress_res != 0) {
-            fprintf(stderr, "Nem sikerult a tomorites.\n");
+            fprintf(stderr, "Failed to compress.\n");
             res = compress_res;
             break;
         }
@@ -372,31 +372,31 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
         write_res = write_compressed(compressed_file, args.force);
         if (write_res < 0) {
             if (write_res == NO_OVERWRITE) {
-                fprintf(stderr, "A fajlt nem irtam felul, nem tortent meg a tomorites.\n");
+                fprintf(stderr, "The file was not overwritten; compression was not performed.\n");
                 write_res = ECANCELED;
             } else if (write_res == MALLOC_ERROR) {
-                fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+                fprintf(stderr, "Failed to allocate memory.\n");
                 write_res = ENOMEM;
             } else if (write_res == FILE_WRITE_ERROR) {
-                fprintf(stderr, "Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
+                fprintf(stderr, "Failed to write the output file (%s).\n", compressed_file->file_name);
                 write_res = EIO;
             } else if (write_res == SCANF_FAILED) {
-                fprintf(stderr, "Nem sikerult beolvasni a valaszt.\n");
+                fprintf(stderr, "Failed to read the response.\n");
                 write_res = EIO;
             } else {
-                fprintf(stderr, "Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
+                fprintf(stderr, "Failed to write the output file (%s).\n", compressed_file->file_name);
                 write_res = EIO;
             }
         }
         else {
             int original_size = (int)data_len;
             int compressed_size = write_res;
-            printf("Tomorites kesz.\n"
-                    "Eredeti meret:    %d%s\n"
-                    "Tomoritett meret: %d%s\n"
-                    "Tomorites aranya: %.2f%%\n", original_size, get_unit(&original_size),
-                                                compressed_size, get_unit(&compressed_size),
-                                                (double)write_res/(args.directory ? directory_size : data_len) * 100);
+            printf("Compression complete.\n"
+                    "Original size:    %d%s\n"
+                    "Compressed size:  %d%s\n"
+                    "Compression ratio: %.2f%%\n", original_size, get_unit(&original_size),
+                                                 compressed_size, get_unit(&compressed_size),
+                                                 (double)write_res/(args.directory ? directory_size : data_len) * 100);
         }
         break;
     }

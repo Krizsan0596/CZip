@@ -60,7 +60,7 @@ static int invoke_run_decompression(Arguments args) {
     if (is_dir) {
         FILE *f = fopen(SERIALIZED_TMP_FILE, "wb");
         if (f == NULL || fwrite(raw_data, 1, raw_size, f) != (size_t)raw_size) {
-            printf("Nem sikerult kiirni a szerializalt adatokat.\n");
+            printf("Failed to write the serialized data.\n");
             if (f != NULL) fclose(f);
             free(raw_data);
             free(original_name);
@@ -72,7 +72,7 @@ static int invoke_run_decompression(Arguments args) {
         char *target = args.output_file != NULL ? args.output_file : original_name;
         int write_res = write_raw(target, raw_data, raw_size, args.force);
         if (write_res < 0) {
-            printf("Hiba tortent a kimeneti fajl (%s) irasa kozben.\n", target);
+            printf("An error occurred while writing the output file (%s).\n", target);
             res = EIO;
         }
     }
