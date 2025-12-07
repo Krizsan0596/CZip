@@ -22,14 +22,6 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     long result = 0;
     char *newpath = NULL;
     Directory_item current_item = {0};
-    bool is_root = (f == NULL);
-    
-    if (is_root) {
-        f = fopen(SERIALIZED_TMP_FILE, "wb");
-        if (f == NULL) {
-            return FILE_WRITE_ERROR;
-        }
-    }
     
     while (true) {
         /* Az elso hivaskor felvesszuk a gyoker mappat az archivumba, hogy a relativ utak megmaradjanak. */
@@ -145,10 +137,6 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
     }
     free(newpath);
     if (directory != NULL) closedir(directory);
-    if (is_root) fclose(f);
-    if (result < 0 && is_root) {
-        remove(SERIALIZED_TMP_FILE);
-    }
     return result;
 }
 
@@ -359,9 +347,7 @@ int prepare_directory(char *input_file, int *directory_size) {
                     result = DIRECTORY_ERROR;
                 }
             }
-            if (temp_file_path != NULL) {
-                remove(temp_file_path);
-            }
+            remove(temp_file_path);
             break;
         }
         
