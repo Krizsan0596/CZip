@@ -375,9 +375,6 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
             } else if (write_res == MALLOC_ERROR) {
                 fprintf(stderr, "Failed to allocate memory.\n");
                 write_res = ENOMEM;
-            } else if (write_res == FILE_WRITE_ERROR) {
-                fprintf(stderr, "Failed to write the output file (%s).\n", compressed_file->file_name);
-                write_res = EIO;
             } else if (write_res == SCANF_FAILED) {
                 fprintf(stderr, "Failed to read the response.\n");
                 write_res = EIO;
