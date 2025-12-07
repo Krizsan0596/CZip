@@ -76,10 +76,10 @@ int write_raw(char *file_name, char *data, long file_size, bool overwrite){
     if (f != NULL) { 
         if (!overwrite) {
             fclose(f);
-            printf("Letezik a fajl (%s). Felulirjam? [I/n]>", file_name);
+            printf("The file (%s) exists. Overwrite? [Y/n]>", file_name);
             char input;
             if (scanf(" %c", &input) != 1) return SCANF_FAILED; 
-            if (tolower(input) != 'i') return NO_OVERWRITE;
+            if (tolower(input) != 'y') return NO_OVERWRITE;
         }
         else fclose(f);
     }

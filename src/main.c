@@ -18,19 +18,19 @@
  */
 static void print_usage(const char *prog_name) {
     const char *usage =
-        "Huffman kodolo\n"
-        "Hasznalat: %s -c|-x [-o KIMENETI_FAJL] BEMENETI_FAJL\n"
+        "Huffman encoder\n"
+        "Usage: %s -c|-x [-o OUTPUT_FILE] INPUT_FILE\n"
         "\n"
-        "Opciok:\n"
-        "\t-c                        Tomorites\n"
-        "\t-x                        Kitomorites\n"
-        "\t-o KIMENETI_FAJL          Kimeneti fajl megadasa (opcionalis).\n"
-        "\t-h                        Kiirja ezt az utmutatot.\n"
-        "\t-f                        Ha letezik a KIMENETI_FAJL, kerdes nelkul felulirja.\n"
-        "\t-r                        Rekurzivan egy megadott mappat tomorit (csak tomoriteskor szukseges).\n"
-        "\t-P, --no-preserve-perms   Kitomoriteskor a tarolt jogosultsagokat alkalmazza a letrehozott mappakra is.\n"
-        "\tBEMENETI_FAJL: A tomoritendo vagy visszaallitando fajl utvonala.\n"
-        "\tA -c es -x kapcsolok kizarjak egymast.";
+        "Options:\n"
+        "\t-c                        Compress\n"
+        "\t-x                        Decompress\n"
+        "\t-o OUTPUT_FILE            Set output file (optional).\n"
+        "\t-h                        Show this guide.\n"
+        "\t-f                        Overwrite OUTPUT_FILE without asking if it exists.\n"
+        "\t-r                        Recursively compress a directory (only needed for compression).\n"
+        "\t-P, --no-preserve-perms   When extracting, apply stored permissions to created directories as well.\n"
+        "\tINPUT_FILE: Path to the file to compress or restore.\n"
+        "\tThe -c and -x options are mutually exclusive.";
 
     printf(usage, prog_name);
 }
@@ -76,13 +76,13 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
                         if (++i < argc) {
                             args->output_file = argv[i];
                         } else {
-                            fprintf(stderr, "Az -o kapcsolo utan add meg a kimeneti fajlt.\n");
+                            fprintf(stderr, "Provide the output file after the -o option.\n");
                             print_usage(argv[0]);
                             return EINVAL;
                         }
                         break;
                     default:
-                        fprintf(stderr, "Ismeretlen kapcsolo: %s\n", argv[i]);
+                        fprintf(stderr, "Unknown option: %s\n", argv[i]);
                         print_usage(argv[0]);
                         return EINVAL;
                 }
@@ -91,7 +91,7 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
             if (args->input_file == NULL) {
                 args->input_file = argv[i];
             } else {
-                fprintf(stderr, "Tobb bemeneti fajl lett megadva.\n");
+                fprintf(stderr, "Multiple input files were provided.\n");
                 print_usage(argv[0]);
                 return EINVAL;
             }
@@ -103,20 +103,20 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
      * Ha nem, kilepunk a programbol. A stat()-ot hasznaljuk, mert az fopen() nem mukodik mappakon.
      */
     if (args->input_file == NULL) {
-        fprintf(stderr, "Nem lett bemeneti fajl megadva.\n");
+        fprintf(stderr, "No input file was provided.\n");
         print_usage(argv[0]);
         return EINVAL;
     }
     
     struct stat st;
     if (stat(args->input_file, &st) != 0) {
-        fprintf(stderr, "A (%s) fajl nem talalhato.\n", args->input_file);
+        fprintf(stderr, "The file (%s) was not found.\n", args->input_file);
         print_usage(argv[0]);
         return FILE_READ_ERROR;
     }
 
     if (args->compress_mode && args->extract_mode) {
-        fprintf(stderr, "A -c es -x kapcsolok kizarjak egymast.\n");
+        fprintf(stderr, "The -c and -x options are mutually exclusive.\n");
         print_usage(argv[0]);
         return EINVAL;
     }
@@ -145,7 +145,7 @@ int main(int argc, char* argv[]){
         struct stat st;
         int ret = stat(args.input_file, &st);
         if (ret != 0) {
-            fprintf(stderr, "Nem sikerult ellenorizni a mappat.\n");
+            fprintf(stderr, "Failed to check the directory.\n");
             return ret;
         }
         else if (S_ISREG(st.st_mode)) args.directory = false;
@@ -154,11 +154,11 @@ int main(int argc, char* argv[]){
         struct stat st;
         int ret = stat(args.input_file, &st);
         if (ret != 0) {
-            fprintf(stderr, "Nem sikerult ellenorizni a fajlt.\n");
+            fprintf(stderr, "Failed to check the file.\n");
             return ret;
         }
         else if (S_ISDIR(st.st_mode)) {
-            fprintf(stderr, "Az -r kapcsolo nelkul nem tomorit mappat a program.\n");
+            fprintf(stderr, "The program will not compress a directory without the -r option.\n");
             print_usage(argv[0]);
             return EISDIR;
         }
@@ -174,15 +174,15 @@ int main(int argc, char* argv[]){
             int prep_res = prepare_directory(args.input_file, &directory_size_int);
             if (prep_res < 0) {
                 if (prep_res == MALLOC_ERROR) {
-                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat a mappa feldolgozasakor.\n");
+                    fprintf(stderr, "Failed to allocate memory while processing the directory.\n");
                 } else if (prep_res == DIRECTORY_ERROR) {
-                    fprintf(stderr, "Nem sikerult feldolgozni a mappat.\n");
+                    fprintf(stderr, "Failed to process the directory.\n");
                 } else if (prep_res == FILE_WRITE_ERROR) {
-                    fprintf(stderr, "Nem sikerult kiirni az ideiglenes fajlt.\n");
+                    fprintf(stderr, "Failed to write the temporary file.\n");
                 } else if (prep_res == FILE_READ_ERROR) {
-                    fprintf(stderr, "Nem sikerult beolvasni egy fajlt a mappabol.\n");
+                    fprintf(stderr, "Failed to read a file from the directory.\n");
                 } else {
-                    fprintf(stderr, "Hiba tortent a mappa feldolgozasakor.\n");
+                    fprintf(stderr, "An error occurred while processing the directory.\n");
                 }
                 return prep_res;
             }
@@ -190,11 +190,11 @@ int main(int argc, char* argv[]){
             int read_res = read_raw(SERIALIZED_TMP_FILE, &data);
             if (read_res < 0) {
                 if (read_res == MALLOC_ERROR) {
-                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+                    fprintf(stderr, "Failed to allocate memory.\n");
                 } else if (read_res == FILE_READ_ERROR) {
-                    fprintf(stderr, "Nem sikerult beolvasni a szerializalt adatokat.\n");
+                    fprintf(stderr, "Failed to read the serialized data.\n");
                 } else {
-                    fprintf(stderr, "Nem sikerult beolvasni a szerializalt adatokat.\n");
+                    fprintf(stderr, "Failed to read the serialized data.\n");
                 }
                 return read_res;
             }
@@ -205,13 +205,13 @@ int main(int argc, char* argv[]){
             int read_res = read_raw(args.input_file, &data);
             if (read_res < 0) {
                 if (read_res == EMPTY_FILE) {
-                    fprintf(stderr, "A fajl (%s) ures.\n", args.input_file);
+                    fprintf(stderr, "The file (%s) is empty.\n", args.input_file);
                 } else if (read_res == MALLOC_ERROR) {
-                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+                    fprintf(stderr, "Failed to allocate memory.\n");
                 } else if (read_res == FILE_READ_ERROR) {
-                    fprintf(stderr, "Nem sikerult beolvasni a fajlt (%s).\n", args.input_file);
+                    fprintf(stderr, "Failed to read the file (%s).\n", args.input_file);
                 } else {
-                    fprintf(stderr, "Nem sikerult megnyitni a fajlt (%s).\n", args.input_file);
+                    fprintf(stderr, "Failed to open the file (%s).\n", args.input_file);
                 }
                 return read_res;
             }
@@ -239,7 +239,7 @@ int main(int argc, char* argv[]){
         if (is_dir) {
             FILE *f = fopen(SERIALIZED_TMP_FILE, "wb");
             if (f == NULL || fwrite(raw_data, 1, raw_size, f) != (size_t)raw_size) {
-                fprintf(stderr, "Nem sikerult kiirni a szerializalt adatokat.\n");
+                fprintf(stderr, "Failed to write the serialized data.\n");
                 if (f != NULL) fclose(f);
                 remove(SERIALIZED_TMP_FILE);
                 free(raw_data);
@@ -250,15 +250,15 @@ int main(int argc, char* argv[]){
             res = restore_directory(args.output_file, args.force, args.no_preserve_perms);
             if (res < 0) {
                 if (res == FILE_READ_ERROR) {
-                    fprintf(stderr, "Nem sikerult beolvasni a szerializalt adatokat.\n");
+                    fprintf(stderr, "Failed to read the serialized data.\n");
                 } else if (res == MALLOC_ERROR) {
-                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+                    fprintf(stderr, "Failed to allocate memory.\n");
                 } else if (res == MKDIR_ERROR) {
-                    fprintf(stderr, "Nem sikerult letrehozni egy mappat.\n");
+                    fprintf(stderr, "Failed to create a directory.\n");
                 } else if (res == FILE_WRITE_ERROR) {
-                    fprintf(stderr, "Nem sikerult kiirni egy fajlt.\n");
+                    fprintf(stderr, "Failed to write a file.\n");
                 } else {
-                    fprintf(stderr, "Nem sikerult visszaallitani a mappat.\n");
+                    fprintf(stderr, "Failed to restore the directory.\n");
                 }
             }
         } else {
@@ -266,13 +266,13 @@ int main(int argc, char* argv[]){
             int write_res = write_raw(target, raw_data, raw_size, args.force);
             if (write_res < 0) {
                 if (write_res == FILE_WRITE_ERROR) {
-                    fprintf(stderr, "Nem sikerult kiirni a kimeneti fajlt (%s).\n", target);
+                    fprintf(stderr, "Failed to write the output file (%s).\n", target);
                 } else if (write_res == SCANF_FAILED) {
-                    fprintf(stderr, "Nem sikerult beolvasni a valaszt.\n");
+                    fprintf(stderr, "Failed to read the response.\n");
                 } else if (write_res == NO_OVERWRITE) {
-                    fprintf(stderr, "A fajl nem lett felulirva.\n");
+                    fprintf(stderr, "The file was not overwritten.\n");
                 } else {
-                    fprintf(stderr, "Hiba tortent a kimeneti fajl (%s) irasa kozben.\n", target);
+                    fprintf(stderr, "An error occurred while writing the output file (%s).\n", target);
                 }
                 res = EIO;
             }
@@ -283,7 +283,7 @@ int main(int argc, char* argv[]){
         return res;
     }
     else {
-        fprintf(stderr, "Az egyik modot (-c vagy -x) meg kell adni.\n");
+        fprintf(stderr, "You must specify one mode (-c or -x).\n");
         print_usage(argv[0]);
         return EINVAL;
     }

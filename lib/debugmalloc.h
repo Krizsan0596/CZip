@@ -105,7 +105,7 @@ static DebugmallocData * debugmalloc_singleton(void) {
             /* another copy of this function already created it. */
             int ok = sscanf(envptr, "%p", &instance);
             if (ok != 1) {
-                fprintf(stderr, "debugmalloc: nem lehet ertelmezni: %s!\n", envptr);
+                fprintf(stderr, "debugmalloc: cannot parse: %s!\n", envptr);
                 abort();
             }
         }
@@ -154,7 +154,7 @@ static void debugmalloc_log(char const *format, ...) {
         f = fopen(instance->logfile, "at");
         if (f == NULL) {
             f = stderr;
-            fprintf(stderr, "debugmalloc: nem tudom megnyitni a %s fajlt irasra!\n", instance->logfile);
+            fprintf(stderr, "debugmalloc: cannot open %s for writing!\n", instance->logfile);
             debugmalloc_strlcpy(instance->logfile, "", sizeof(instance->logfile));
         }
     }

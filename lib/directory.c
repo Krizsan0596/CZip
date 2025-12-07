@@ -362,7 +362,7 @@ int prepare_directory(char *input_file, int *directory_size) {
     
     while (true) {
         if (getcwd(current_path, sizeof(current_path)) == NULL) {
-            fprintf(stderr, "Nem sikerult elmenteni az utat.\n");
+            fprintf(stderr, "Failed to store the current path.\n");
             result = DIRECTORY_ERROR;
             break;
         }
@@ -392,7 +392,7 @@ int prepare_directory(char *input_file, int *directory_size) {
                 break;
             }
             if (chdir(parent_dir) != 0) {
-                fprintf(stderr, "Nem sikerult belepni a mappaba.\n");
+                fprintf(stderr, "Failed to enter the directory.\n");
                 result = DIRECTORY_ERROR;
                 break;
             }
@@ -402,22 +402,22 @@ int prepare_directory(char *input_file, int *directory_size) {
         char temp_file_path[PATH_MAX];
         int path_len = snprintf(temp_file_path, sizeof(temp_file_path), "%s/%s", current_path, SERIALIZED_TMP_FILE);
         if (path_len >= (int)sizeof(temp_file_path)) {
-            fprintf(stderr, "A temp fajl eleresi utja tul hosszu.\n");
+            fprintf(stderr, "The temp file path is too long.\n");
             result = DIRECTORY_ERROR;
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
+                    fprintf(stderr, "Failed to exit the directory.\n");
                 }
             }
             break;
         }
         temp_file = fopen(temp_file_path, "wb");
         if (temp_file == NULL) {
-            fprintf(stderr, "Nem sikerult megnyitni a temp fajlt.\n");
+            fprintf(stderr, "Failed to open the temp file.\n");
             result = FILE_WRITE_ERROR;
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
+                    fprintf(stderr, "Failed to exit the directory.\n");
                 }
             }
             break;
@@ -429,19 +429,19 @@ int prepare_directory(char *input_file, int *directory_size) {
         
         if (dir_size < 0) {
             if (dir_size == MALLOC_ERROR) {
-                fprintf(stderr, "Nem sikerult lefoglalni a memoriat a mappa archivallasakor.\n");
+                fprintf(stderr, "Failed to allocate memory while archiving the directory.\n");
             } else if (dir_size == DIRECTORY_OPEN_ERROR) {
-                fprintf(stderr, "Nem sikerult megnyitni a mappat.\n");
+                fprintf(stderr, "Failed to open the directory.\n");
             } else if (dir_size == FILE_READ_ERROR) {
-                fprintf(stderr, "Nem sikerult beolvasni egy fajlt a mappabol.\n");
+                fprintf(stderr, "Failed to read a file from the directory.\n");
             } else {
-                fprintf(stderr, "Nem sikerult a mappa archivallasa.\n");
+                fprintf(stderr, "Failed to archive the directory.\n");
             }
             result = dir_size;
             /* Visszalepunk az eredeti mappaba hibaeseten is. */
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
+                    fprintf(stderr, "Failed to exit the directory.\n");
                     result = DIRECTORY_ERROR;
                 }
             }
@@ -454,7 +454,7 @@ int prepare_directory(char *input_file, int *directory_size) {
         /* Visszalepunk az eredeti mappaba. */
         if (sep != NULL) {
             if (chdir(current_path) != 0) {
-                fprintf(stderr, "Nem sikerult kilepni a mappabol.\n");
+                fprintf(stderr, "Failed to exit the directory.\n");
                 result = DIRECTORY_ERROR;
                 break;
             }
@@ -484,14 +484,14 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
     while (true) {
         f = fopen(SERIALIZED_TMP_FILE, "rb");
         if (f == NULL) {
-            fprintf(stderr, "Nem sikerult megnyitni a szerializalt fajlt.\n");
+            fprintf(stderr, "Failed to open the serialized file.\n");
             res = FILE_READ_ERROR;
             break;
         }
         
         if (output_file != NULL) {
             if (mkdir(output_file, 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "Nem sikerult letrehozni a kimeneti mappat.\n");
+                fprintf(stderr, "Failed to create the output directory.\n");
                 res = MKDIR_ERROR;
                 fclose(f);
                 break;
@@ -503,9 +503,9 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
             long bytes_read = deserialize_item(&item, f);
             if (bytes_read < 0) {
                 if (bytes_read == MALLOC_ERROR) {
-                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat a beolvasaskor.\n");
+                    fprintf(stderr, "Failed to allocate memory while reading.\n");
                 } else {
-                    fprintf(stderr, "Nem sikerult a tomoritett mappa beolvasasa.\n");
+                    fprintf(stderr, "Failed to read the compressed directory.\n");
                 }
                 res = bytes_read;
                 // Free any memory allocated in item before breaking
@@ -530,13 +530,13 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
             
             if (ret != 0) {
                 if (ret == MKDIR_ERROR) {
-                    fprintf(stderr, "Nem sikerult letrehozni egy mappat a kitomoriteskor.\n");
+                    fprintf(stderr, "Failed to create a directory during extraction.\n");
                 } else if (ret == FILE_WRITE_ERROR) {
-                    fprintf(stderr, "Nem sikerult kiirni egy fajlt a kitomoriteskor.\n");
+                    fprintf(stderr, "Failed to write a file during extraction.\n");
                 } else if (ret == MALLOC_ERROR) {
-                    fprintf(stderr, "Nem sikerult lefoglalni a memoriat.\n");
+                    fprintf(stderr, "Failed to allocate memory.\n");
                 } else {
-                    fprintf(stderr, "Nem sikerult a mappa kitomoritese.\n");
+                    fprintf(stderr, "Failed to extract the directory.\n");
                 }
                 res = ret;
                 break;
