@@ -220,6 +220,7 @@ int main(int argc, char* argv[]){
             if (f == NULL || fwrite(raw_data, 1, raw_size, f) != (size_t)raw_size) {
                 printf("Nem sikerult kiirni a szerializalt adatokat.\n");
                 if (f != NULL) fclose(f);
+                remove(SERIALIZED_TMP_FILE);
                 free(raw_data);
                 free(original_name);
                 return FILE_WRITE_ERROR;

@@ -233,29 +233,78 @@ long deserialize_item(Directory_item *item, FILE *f) {
         return FILE_READ_ERROR;
     }
     read_size += sizeof(long);
-    read_size += sizeof(bool) * fread(&item->is_dir, sizeof(bool), 1, f);
+    
+    if (fread(&item->is_dir, sizeof(bool), 1, f) != 1) {
+        return FILE_READ_ERROR;
+    }
+    read_size += sizeof(bool);
+    
     if (item->is_dir) {
-        read_size += sizeof(int) * fread(&item->perms, sizeof(int), 1, f);
+        if (fread(&item->perms, sizeof(int), 1, f) != 1) {
+            return FILE_READ_ERROR;
+        }
+        read_size += sizeof(int);
+        
         int path_len = archive_size - sizeof(bool) - sizeof(int);
         item->dir_path = malloc(sizeof(char) * path_len);
         if (item->dir_path == NULL) return MALLOC_ERROR;
-        read_size += sizeof(char) * fread(item->dir_path, sizeof(char), path_len, f);
+        
+        if (fread(item->dir_path, sizeof(char), path_len, f) != (size_t)path_len) {
+            free(item->dir_path);
+            item->dir_path = NULL;
+            return FILE_READ_ERROR;
+        }
+        read_size += sizeof(char) * path_len;
     }
     else {
-        read_size += sizeof(long) * fread(&item->file_size, sizeof(long), 1, f);
+        if (fread(&item->file_size, sizeof(long), 1, f) != 1) {
+            return FILE_READ_ERROR;
+        }
+        read_size += sizeof(long);
+        
         int path_len = archive_size - sizeof(bool) - sizeof(long) - item->file_size;
         item->file_path = malloc(path_len);
         if (item->file_path == NULL) return MALLOC_ERROR;
-        read_size += sizeof(char) * fread(item->file_path, sizeof(char), path_len, f);
+        
+        if (fread(item->file_path, sizeof(char), path_len, f) != (size_t)path_len) {
+            free(item->file_path);
+            item->file_path = NULL;
+            return FILE_READ_ERROR;
+        }
+        read_size += sizeof(char) * path_len;
+        
         if (item->file_size > 0) {
             item->file_data = malloc(item->file_size);
-            if (item->file_data == NULL) return MALLOC_ERROR;
-            read_size += sizeof(char) * fread(item->file_data, sizeof(char), item->file_size, f);
+            if (item->file_data == NULL) {
+                free(item->file_path);
+                item->file_path = NULL;
+                return MALLOC_ERROR;
+            }
+            
+            if (fread(item->file_data, sizeof(char), item->file_size, f) != (size_t)item->file_size) {
+                free(item->file_path);
+                free(item->file_data);
+                item->file_path = NULL;
+                item->file_data = NULL;
+                return FILE_READ_ERROR;
+            }
+            read_size += sizeof(char) * item->file_size;
         } else {
             item->file_data = NULL;
         }
     }
-    if (read_size != archive_size + sizeof(long)) return FILE_READ_ERROR;
+    if (read_size != archive_size + sizeof(long)) {
+        if (item->is_dir) {
+            free(item->dir_path);
+            item->dir_path = NULL;
+        } else {
+            free(item->file_path);
+            free(item->file_data);
+            item->file_path = NULL;
+            item->file_data = NULL;
+        }
+        return FILE_READ_ERROR;
+    }
     return archive_size + sizeof(long);
 }
 
@@ -359,9 +408,7 @@ int prepare_directory(char *input_file, int *directory_size) {
                     result = DIRECTORY_ERROR;
                 }
             }
-            if (temp_file_path != NULL) {
-                remove(temp_file_path);
-            }
+            remove(temp_file_path);
             break;
         }
         
