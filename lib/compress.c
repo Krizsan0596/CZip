@@ -374,6 +374,15 @@ int run_compression(Arguments args, char *data, long data_len, long directory_si
             if (write_res == NO_OVERWRITE) {
                 printf("A fajlt nem irtam felul, nem tortent meg a tomorites.\n");
                 write_res = ECANCELED;
+            } else if (write_res == MALLOC_ERROR) {
+                printf("Nem sikerult lefoglalni a memoriat.\n");
+                write_res = ENOMEM;
+            } else if (write_res == FILE_WRITE_ERROR) {
+                printf("Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
+                write_res = EIO;
+            } else if (write_res == SCANF_FAILED) {
+                printf("Nem sikerult beolvasni a valaszt.\n");
+                write_res = EIO;
             } else {
                 printf("Nem sikerult kiirni a kimeneti fajlt (%s).\n", compressed_file->file_name);
                 write_res = EIO;
