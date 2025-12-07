@@ -60,7 +60,7 @@ static int invoke_run_decompression(Arguments args) {
     if (is_dir) {
         FILE *f = fopen(SERIALIZED_TMP_FILE, "wb");
         if (f == NULL || fwrite(raw_data, 1, raw_size, f) != (size_t)raw_size) {
-            printf("Failed to write the serialized data.\n");
+            fprintf(stderr, "Failed to write the serialized data.\n");
             if (f != NULL) fclose(f);
             free(raw_data);
             free(original_name);
@@ -72,7 +72,7 @@ static int invoke_run_decompression(Arguments args) {
         char *target = args.output_file != NULL ? args.output_file : original_name;
         int write_res = write_raw(target, raw_data, raw_size, args.force);
         if (write_res < 0) {
-            printf("An error occurred while writing the output file (%s).\n", target);
+            fprintf(stderr, "An error occurred while writing the output file (%s).\n", target);
             res = EIO;
         }
     }
@@ -123,7 +123,7 @@ int main() {
     Compressed_file *compressed_file = malloc(sizeof(Compressed_file));
     int compress_result = compress(data, data_len, nodes, root_node, cache, compressed_file);
     if (compress_result != 0) {
-        printf("Compression failed with error code %d!\n", compress_result);
+        fprintf(stderr, "Compression failed with error code %d!\n", compress_result);
         free(nodes);
         for(int i=0; i<256; ++i) {
             if (cache[i] != NULL) {
@@ -141,7 +141,7 @@ int main() {
     char *raw_data = malloc(data_len * sizeof(char));
     int decompress_result = decompress(compressed_file, raw_data);
     if (decompress_result != 0) {
-        printf("Decompression failed with error code %d!\n", decompress_result);
+        fprintf(stderr, "Decompression failed with error code %d!\n", decompress_result);
         free(nodes);
         for(int i=0; i<256; ++i) {
             if (cache[i] != NULL) {
@@ -156,9 +156,9 @@ int main() {
     }
 
     if (memcmp(data, raw_data, data_len) != 0) {
-        printf("Decompression failed!\n");
-        printf("Original:  %s\n", data);
-        printf("Decompressed: %s\n", raw_data);
+        fprintf(stderr, "Decompression failed!\n");
+        fprintf(stderr, "Original:  %s\n", data);
+        fprintf(stderr, "Decompressed: %s\n", raw_data);
     } else {
         printf("Decompression successful!\n");
     }
