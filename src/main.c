@@ -173,12 +173,29 @@ int main(int argc, char* argv[]){
         if (args.directory) {
             int prep_res = prepare_directory(args.input_file, &directory_size_int);
             if (prep_res < 0) {
+                if (prep_res == MALLOC_ERROR) {
+                    printf("Nem sikerult lefoglalni a memoriat a mappa feldolgozasakor.\n");
+                } else if (prep_res == DIRECTORY_ERROR) {
+                    printf("Nem sikerult feldolgozni a mappat.\n");
+                } else if (prep_res == FILE_WRITE_ERROR) {
+                    printf("Nem sikerult kiirni az ideiglenes fajlt.\n");
+                } else if (prep_res == FILE_READ_ERROR) {
+                    printf("Nem sikerult beolvasni egy fajlt a mappabol.\n");
+                } else {
+                    printf("Hiba tortent a mappa feldolgozasakor.\n");
+                }
                 return prep_res;
             }
             directory_size = directory_size_int;
             int read_res = read_raw(SERIALIZED_TMP_FILE, &data);
             if (read_res < 0) {
-                printf("Nem sikerult beolvasni a szerializalt adatokat.\n");
+                if (read_res == MALLOC_ERROR) {
+                    printf("Nem sikerult lefoglalni a memoriat.\n");
+                } else if (read_res == FILE_READ_ERROR) {
+                    printf("Nem sikerult beolvasni a szerializalt adatokat.\n");
+                } else {
+                    printf("Nem sikerult beolvasni a szerializalt adatokat.\n");
+                }
                 return read_res;
             }
             data_len = read_res;
@@ -189,6 +206,10 @@ int main(int argc, char* argv[]){
             if (read_res < 0) {
                 if (read_res == EMPTY_FILE) {
                     printf("A fajl (%s) ures.\n", args.input_file);
+                } else if (read_res == MALLOC_ERROR) {
+                    printf("Nem sikerult lefoglalni a memoriat.\n");
+                } else if (read_res == FILE_READ_ERROR) {
+                    printf("Nem sikerult beolvasni a fajlt (%s).\n", args.input_file);
                 } else {
                     printf("Nem sikerult megnyitni a fajlt (%s).\n", args.input_file);
                 }
@@ -227,11 +248,32 @@ int main(int argc, char* argv[]){
             }
             fclose(f);
             res = restore_directory(args.output_file, args.force, args.no_preserve_perms);
+            if (res < 0) {
+                if (res == FILE_READ_ERROR) {
+                    printf("Nem sikerult beolvasni a szerializalt adatokat.\n");
+                } else if (res == MALLOC_ERROR) {
+                    printf("Nem sikerult lefoglalni a memoriat.\n");
+                } else if (res == MKDIR_ERROR) {
+                    printf("Nem sikerult letrehozni egy mappat.\n");
+                } else if (res == FILE_WRITE_ERROR) {
+                    printf("Nem sikerult kiirni egy fajlt.\n");
+                } else {
+                    printf("Nem sikerult visszaallitani a mappat.\n");
+                }
+            }
         } else {
             char *target = args.output_file != NULL ? args.output_file : original_name;
             int write_res = write_raw(target, raw_data, raw_size, args.force);
             if (write_res < 0) {
-                printf("Hiba tortent a kimeneti fajl (%s) irasa kozben.\n", target);
+                if (write_res == FILE_WRITE_ERROR) {
+                    printf("Nem sikerult kiirni a kimeneti fajlt (%s).\n", target);
+                } else if (write_res == SCANF_FAILED) {
+                    printf("Nem sikerult beolvasni a valaszt.\n");
+                } else if (write_res == NO_OVERWRITE) {
+                    printf("A fajl nem lett felulirva.\n");
+                } else {
+                    printf("Hiba tortent a kimeneti fajl (%s) irasa kozben.\n", target);
+                }
                 res = EIO;
             }
         }

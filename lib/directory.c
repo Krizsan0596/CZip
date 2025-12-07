@@ -533,6 +533,8 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
                     printf("Nem sikerult letrehozni egy mappat a kitomoriteskor.\n");
                 } else if (ret == FILE_WRITE_ERROR) {
                     printf("Nem sikerult kiirni egy fajlt a kitomoriteskor.\n");
+                } else if (ret == MALLOC_ERROR) {
+                    printf("Nem sikerult lefoglalni a memoriat.\n");
                 } else {
                     printf("Nem sikerult a mappa kitomoritese.\n");
                 }

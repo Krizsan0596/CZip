@@ -85,10 +85,16 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
             if (read_res == FILE_MAGIC_ERROR) {
                 printf("A tomoritett fajl (%s) serult, nem sikerult beolvasni.\n", args.input_file);
                 res = EBADF;
-                break;
+            } else if (read_res == MALLOC_ERROR) {
+                printf("Nem sikerult lefoglalni a memoriat.\n");
+                res = ENOMEM;
+            } else if (read_res == FILE_READ_ERROR) {
+                printf("Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
+                res = EIO;
+            } else {
+                printf("Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
+                res = EIO;
             }
-            printf("Nem sikerult beolvasni a tomoritett fajlt (%s).\n", args.input_file);
-            res = EIO;
             break;
         }
 
