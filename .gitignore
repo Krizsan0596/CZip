@@ -10,3 +10,5 @@ file_io_test
 compress_test
 huffman
 test_compress_decompress
+_codeql_build_dir/
+_codeql_detected_source_root
