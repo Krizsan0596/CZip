@@ -4,21 +4,21 @@
 #include <stdbool.h>
 
 /*
- * A magic az a tomoritett fajlban szereplo azonosito.
+ * Magic value used as the identifier stored in the compressed file.
  */
 static const char magic[4] = {'H', 'U', 'F', 'F'};
 
 #define SERIALIZED_TMP_FILE ".serialized.tmp"
 
 
-// Jelzi, hogy egy node level (adatot tartalmaz) vagy csomopont.
+// Indicates whether a node is a leaf (stores data) or a branch.
 typedef enum {
     LEAF,
     BRANCH
 } Node_type;
 
 
-// A Huffman fa egy pontja: unionban tarolja a karaktert vagy a ket gyermek indexet.
+// A node in the Huffman tree; stores either the character or the indices of its two children in a union.
 typedef struct Node {
     Node_type type;
     long frequency;
@@ -32,9 +32,9 @@ typedef struct Node {
 } Node;
 
 /*
- * A tomoritett fajl minden fontos adatat tartalmazza: az azonosito szam, fajlnevek, fa, tomoritett adat es meretek.
- * A compress es decompress, valamint a read es write_compressed funkciok ezt a strukturat ertelmezik.
- * A tomoritett adat meretet bitekben tarolja, igy tudja kezelni a nem teljes bajtnyi tomoritett adatot. (pl. 21 bit)
+ * Contains all key data of the compressed file: the identifier, file names, tree, compressed data, and sizes.
+ * The compress/decompress and read/write_compressed functions interpret this structure.
+ * Stores the compressed data size in bits so it can track partial bytes (for example, 21 bits).
  */
 typedef struct {
     char magic[4];
@@ -48,7 +48,7 @@ typedef struct {
     long data_size; // In bits.
 } Compressed_file;
 
-// A segedfuggvenyek hibakodjait tarolja.
+// Holds the error codes for the helper functions.
 typedef enum {
     SUCCESS = 0,
     HELP_REQUESTED = 1,

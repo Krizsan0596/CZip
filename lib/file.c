@@ -11,8 +11,8 @@
 
 
 /*
- * Meghatarozza egy megnyitott fajl hosszat.
- * Siker eseten a meretet, hiba eseten -1-et ad vissza.
+ * Determines the length of an open file.
+ * Returns the size on success or -1 on failure.
  */
 long get_file_size(FILE *f){
     long current = ftell(f);
@@ -23,8 +23,8 @@ long get_file_size(FILE *f){
 } 
 
 /*
- * A bajtok szamat nagyobb egysegkent jeleniti meg, kozben frissiti a bemenetul adott meretet.
- * A valasztott mertekegyseg roviditeset adja vissza.
+ * Converts the byte count to a larger unit while updating the supplied size.
+ * Returns the abbreviation of the chosen unit.
  */
 const char* get_unit(int *bytes) {
     if (*bytes < 1024) return "B";
@@ -37,8 +37,8 @@ const char* get_unit(int *bytes) {
 }
 
 /*
- * Beolvassa a fajlt memoriaba, a pointert a hivo adja meg.
- * Siker eseten a beolvasott bajtok szamat, hibakor negativ kodot ad vissza.
+ * Reads the file into memory; the caller supplies the pointer.
+ * Returns the number of bytes read on success or a negative code on error.
  */
 int read_raw(char file_name[], char** data){
     FILE* f;
@@ -67,8 +67,8 @@ int read_raw(char file_name[], char** data){
 }
 
 /*
- * Kiirja a megadott buffert lemezre, feluliras elott rakerdez, ha az overwrite parameter hamis.
- * Ellenorzi hogy a teljes fajlt sikerult-e kiirni, hiba eseten negativ error kodokat ad vissza.
+ * Writes the given buffer to disk; prompts before overwriting when overwrite is false.
+ * Verifies the entire file was written; returns negative error codes on failure.
  */
 int write_raw(char *file_name, char *data, long file_size, bool overwrite){
     FILE* f;
@@ -92,8 +92,8 @@ int write_raw(char *file_name, char *data, long file_size, bool overwrite){
 }
 
 /*
- * Beolvassa a tarolt Compressed_file formatumot, ellenorzi hogy megvannak-e a szukseges adatok.
- * Az osszes szukseges buffert lefoglalja, visszaadja azt a Compressed_file strukturat amit a write_compressed funkcio kiirt.
+ * Reads the stored Compressed_file format and verifies the required data is present.
+ * Allocates all necessary buffers and populates the Compressed_file structure written by write_compressed.
  */
 int read_compressed(char file_name[], Compressed_file *compressed){
     int ret = SUCCESS;
@@ -213,8 +213,8 @@ int read_compressed(char file_name[], Compressed_file *compressed){
     return ret;
 }
 /*
- * Szerializalja a kapott strukturat majd kiirja a megadott fajlba.
- * A kiirast a write_raw funkcio vegzi.
+ * Serializes the provided structure and writes it to the given file.
+ * The actual write is performed by write_raw.
  */
 int write_compressed(Compressed_file *compressed, bool overwrite) {
     long name_len = strlen(compressed->original_file);
