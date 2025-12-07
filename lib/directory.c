@@ -48,7 +48,13 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 break;
             }
             (*archive_size)++;
-            *data_size += serialize_item(&root, f);
+            long bytes_written = serialize_item(&root, f);
+            if (bytes_written < 0) {
+                result = bytes_written;
+                free(root.dir_path);
+                break;
+            }
+            *data_size += bytes_written;
             free(root.dir_path);
         }
 
@@ -90,7 +96,13 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                     break;
                 }
                 (*archive_size)++;
-                *data_size += serialize_item(&subdir, f);
+                long bytes_written = serialize_item(&subdir, f);
+                if (bytes_written < 0) {
+                    result = bytes_written;
+                    free(subdir.dir_path);
+                    break;
+                }
+                *data_size += bytes_written;
                 free(subdir.dir_path);
                 long subdir_size = archive_directory(newpath, archive_size, data_size, f);
                 if (subdir_size < 0) {
@@ -122,7 +134,13 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 }
                 dir_size += file.file_size;
                 (*archive_size)++;
-                *data_size += serialize_item(&file, f);
+                long bytes_written = serialize_item(&file, f);
+                if (bytes_written < 0) {
+                    result = bytes_written;
+                    current_item = file;
+                    break;
+                }
+                *data_size += bytes_written;
                 free(file.file_path);
                 free(file.file_data);
             }
@@ -159,16 +177,47 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
 long serialize_item(Directory_item *item, FILE *f) {
     long data_size = 0;
     long item_size = sizeof(bool) + ((item->is_dir) ? (strlen(item->dir_path) + 1 + sizeof(int)) : (sizeof(long) + strlen(item->file_path) + 1 + item->file_size));
-    data_size += sizeof(long) * fwrite(&item_size, sizeof(long), 1, f);
-    data_size += sizeof(bool) * fwrite(&item->is_dir, sizeof(bool), 1, f);
+    
+    if (fwrite(&item_size, sizeof(long), 1, f) != 1) {
+        return FILE_WRITE_ERROR;
+    }
+    data_size += sizeof(long);
+    
+    if (fwrite(&item->is_dir, sizeof(bool), 1, f) != 1) {
+        return FILE_WRITE_ERROR;
+    }
+    data_size += sizeof(bool);
+    
     if (item->is_dir) {
-        data_size += sizeof(int) * fwrite(&item->perms, sizeof(int), 1, f);
-        data_size += sizeof(char) * fwrite(item->dir_path, sizeof(char), strlen(item->dir_path) + 1, f);
+        if (fwrite(&item->perms, sizeof(int), 1, f) != 1) {
+            return FILE_WRITE_ERROR;
+        }
+        data_size += sizeof(int);
+        
+        size_t path_len = strlen(item->dir_path) + 1;
+        if (fwrite(item->dir_path, sizeof(char), path_len, f) != path_len) {
+            return FILE_WRITE_ERROR;
+        }
+        data_size += path_len;
     }
     else {
-        data_size += sizeof(long) * fwrite(&item->file_size, sizeof(long), 1, f);
-        data_size += fwrite(item->file_path, sizeof(char), strlen(item->file_path) + 1, f);
-        data_size += fwrite(item->file_data, sizeof(char), item->file_size, f);
+        if (fwrite(&item->file_size, sizeof(long), 1, f) != 1) {
+            return FILE_WRITE_ERROR;
+        }
+        data_size += sizeof(long);
+        
+        size_t path_len = strlen(item->file_path) + 1;
+        if (fwrite(item->file_path, sizeof(char), path_len, f) != path_len) {
+            return FILE_WRITE_ERROR;
+        }
+        data_size += path_len;
+        
+        if (item->file_size > 0) {
+            if (fwrite(item->file_data, sizeof(char), item->file_size, f) != (size_t)item->file_size) {
+                return FILE_WRITE_ERROR;
+            }
+            data_size += item->file_size;
+        }
     }
     return data_size;
 }
@@ -359,9 +408,7 @@ int prepare_directory(char *input_file, int *directory_size) {
                     result = DIRECTORY_ERROR;
                 }
             }
-            if (temp_file_path != NULL) {
-                remove(temp_file_path);
-            }
+            remove(temp_file_path);
             break;
         }
         
