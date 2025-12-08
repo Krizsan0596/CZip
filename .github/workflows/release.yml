@@ -35,6 +35,7 @@ jobs:
       - name: Package binary
         run: |
           cd build
+          test -f huffman || exit 1
           tar -czf "../huffman-${VERSION}-linux.tar.gz" huffman
 
       - name: Upload artifact
