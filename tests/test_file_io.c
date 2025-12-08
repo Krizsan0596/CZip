@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <math.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include "../lib/file.h"
 #include "../lib/data_types.h"
 #include "../lib/debugmalloc.h"
@@ -33,7 +34,9 @@ void test_file_io() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("test.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("test.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(original_data.original_size == read_data.original_size);
     assert(strcmp(original_data.original_file, read_data.original_file) == 0);
@@ -43,13 +46,13 @@ void test_file_io() {
     assert(memcmp(original_data.compressed_data, read_data.compressed_data, compressed_bytes) == 0);
 
     // 4. Teardown
+    munmap((void*)mmap_ptr, mmap_size);
     free(original_data.original_file);
     free(original_data.huffman_tree);
     free(original_data.compressed_data);
     free(original_data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("test.huf");
@@ -81,18 +84,20 @@ void test_file_io_with_empty_filename() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("empty_name.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("empty_name.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(data.original_size == read_data.original_size);
     assert(strcmp(data.original_file, read_data.original_file) == 0);
 
+    munmap((void*)mmap_ptr, mmap_size);
     free(data.original_file);
     free(data.huffman_tree);
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("empty_name.huf");
@@ -129,19 +134,21 @@ void test_file_io_with_long_filename() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("long_name.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("long_name.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(data.original_size == read_data.original_size);
     assert(strcmp(data.original_file, read_data.original_file) == 0);
     assert(data.tree_size == read_data.tree_size);
 
+    munmap((void*)mmap_ptr, mmap_size);
     free(data.original_file);
     free(data.huffman_tree);
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("long_name.huf");
@@ -205,19 +212,21 @@ void test_file_io_with_large_tree() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("large_tree.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("large_tree.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(data.original_size == read_data.original_size);
     assert(data.tree_size == read_data.tree_size);
     assert(memcmp(data.huffman_tree, read_data.huffman_tree, data.tree_size) == 0);
 
+    munmap((void*)mmap_ptr, mmap_size);
     free(data.original_file);
     free(data.huffman_tree);
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("large_tree.huf");
@@ -256,7 +265,9 @@ void test_file_io_with_binary_data() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("binary.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("binary.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(data.original_size == read_data.original_size);
     assert(data.tree_size == read_data.tree_size);
@@ -264,13 +275,13 @@ void test_file_io_with_binary_data() {
     assert(memcmp(data.huffman_tree, read_data.huffman_tree, data.tree_size) == 0);
     assert(memcmp(data.compressed_data, read_data.compressed_data, compressed_bytes) == 0);
 
+    munmap((void*)mmap_ptr, mmap_size);
     free(data.original_file);
     free(data.huffman_tree);
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("binary.huf");
@@ -299,19 +310,21 @@ void test_file_io_directory_flag() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("directory.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("directory.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(data.is_dir == read_data.is_dir);
     assert(read_data.is_dir == true);
     assert(data.original_size == read_data.original_size);
 
+    munmap((void*)mmap_ptr, mmap_size);
     free(data.original_file);
     free(data.huffman_tree);
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("directory.huf");
@@ -340,17 +353,19 @@ void test_file_io_special_chars_in_original_filename() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("special.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("special.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(strcmp(data.original_file, read_data.original_file) == 0);
 
+    munmap((void*)mmap_ptr, mmap_size);
     free(data.original_file);
     free(data.huffman_tree);
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("special.huf");
@@ -363,11 +378,12 @@ void test_file_io_read_nonexistent_file() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
+    const char *mmap_ptr = NULL;
     
-    int result = read_compressed("nonexistent_file_12345.huf", &read_data);
+    int result = read_compressed("nonexistent_file_12345.huf", &read_data, &mmap_ptr);
     
     // Should return error for non-existent file
-    assert(result != 0);
+    assert(result < 0);
     
     printf("test_file_io_read_nonexistent_file passed. Error code: %d\n", result);
 }
@@ -398,19 +414,21 @@ void test_file_io_very_large_compressed_data() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    assert(read_compressed("huge.huf", &read_data) == 0);
+    const char *mmap_ptr = NULL;
+    int mmap_size = read_compressed("huge.huf", &read_data, &mmap_ptr);
+    assert(mmap_size > 0);
 
     assert(data.original_size == read_data.original_size);
     assert(data.data_size == read_data.data_size);
     assert(memcmp(data.compressed_data, read_data.compressed_data, compressed_bytes) == 0);
 
+    munmap((void*)mmap_ptr, mmap_size);
     free(data.original_file);
     free(data.huffman_tree);
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
     free(read_data.huffman_tree);
-    free(read_data.compressed_data);
     free(read_data.file_name);
 
     remove("huge.huf");
