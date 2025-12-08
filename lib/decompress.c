@@ -15,20 +15,16 @@
  * Returns 0 on success or a negative value on failure.
  */
 int decompress(Compressed_file *compressed, char *raw) {
-    long root_index = (compressed->tree_size / sizeof(Node)) - 1;
+    size_t root_index = (compressed->tree_size / sizeof(Node)) - 1;
 
-    if (root_index < 0) {
-        return TREE_ERROR;
-    }
-
-    long current_node = root_index;
-    long current_raw = 0;
+    size_t current_node = root_index;
+    size_t current_raw = 0;
 
     // Check whether the root is a leaf (the single unique character case).
     bool root_is_leaf = (compressed->huffman_tree[root_index].type == LEAF);
 
     unsigned char buffer = 0;
-    for (long i = 0; i < compressed->data_size; i++) {
+    for (size_t i = 0; i < (size_t)compressed->data_size; i++) {
         if (current_raw >= compressed->original_size) {
             break;
         }

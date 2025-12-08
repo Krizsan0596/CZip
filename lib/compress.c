@@ -29,7 +29,7 @@ void sort_nodes(Node *nodes, int len) {
  * Returns 0 after processing every byte; the caller must supply a zeroed frequencies array.
  */
 int count_frequencies(const char *data, long data_len, long *frequencies) {
-    for (int i = 0; i < data_len; i++){
+    for (size_t i = 0; i < (size_t)data_len; i++){
         frequencies[(unsigned char) data[i]] += 1;
     }
     return 0;
@@ -47,7 +47,7 @@ char* generate_output_file(char *input_file){
 
     char *out;
     if (name_end != NULL) {
-        int name_len = name_end - input_file;
+        size_t name_len = name_end - input_file;
         out = malloc(name_len + 6);
         if (out == NULL) {
             return NULL;
@@ -192,11 +192,11 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
         return MALLOC_ERROR;
     }
 
-    long total_bits = 0;
+    size_t total_bits = 0;
     unsigned char buffer = 0;
     int bit_count = 0;
 
-    for (long i = 0; i < data_len; i++) {
+    for (size_t i = 0; i < (size_t)data_len; i++) {
         char *path = check_cache(original_data[i], cache);
         if (path == NULL) {
             path = find_leaf(original_data[i], nodes, root_node);
@@ -234,7 +234,7 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
     if (total_bits == 0 && data_len > 0) {
         buffer = 0;
         bit_count = 0;
-        for (long i = 0; i < data_len; i++) {
+        for (size_t i = 0; i < (size_t)data_len; i++) {
             // Write a 0 bit (do not set a bit in the buffer)
             bit_count++;
             if (bit_count == 8) {
@@ -252,7 +252,7 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
 
     compressed_file->data_size = total_bits;
 
-    long final_size = (long)ceil((double)total_bits / 8.0);
+    size_t final_size = (size_t)ceil((double)total_bits / 8.0);
     char *temp = realloc(compressed_file->compressed_data, final_size);
     if (temp != NULL) {
         compressed_file->compressed_data = temp;
@@ -383,11 +383,11 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
             }
         }
         else {
-            int original_size = (int)data_len;
-            int compressed_size = write_res;
+            size_t original_size = (size_t)data_len;
+            size_t compressed_size = write_res;
             printf("Compression complete.\n"
-                    "Original size:    %d%s\n"
-                    "Compressed size:  %d%s\n"
+                    "Original size:    %zu%s\n"
+                    "Compressed size:  %zu%s\n"
                     "Compression ratio: %.2f%%\n", original_size, get_unit(&original_size),
                                                  compressed_size, get_unit(&compressed_size),
                                                  (double)write_res/(args.directory ? directory_size : data_len) * 100);

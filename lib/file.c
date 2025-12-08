@@ -30,7 +30,7 @@ long get_file_size(FILE *f){
  * Converts the byte count to a larger unit while updating the supplied size.
  * Returns the abbreviation of the chosen unit.
  */
-const char* get_unit(int *bytes) {
+const char* get_unit(size_t *bytes) {
     if (*bytes < 1024) return "B";
     *bytes /= 1024;
     if (*bytes < 1024) return "KB";
@@ -180,12 +180,12 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
         compressed->is_dir = *(bool*)current;
         current += sizeof(bool);
 
-        if (current + sizeof(long) > end) {
+        if (current + sizeof(size_t) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
-        compressed->original_size = *(long*)current;
-        current += sizeof(long);
+        compressed->original_size = *(size_t*)current;
+        current += sizeof(size_t);
 
         long name_len = 0;
         if (current + sizeof(long) > end) {
@@ -213,17 +213,12 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
         compressed->original_file[name_len] = '\0';
         current += name_len;
 
-        if (current + sizeof(long) > end) {
+        if (current + sizeof(size_t) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
-        compressed->tree_size = *(long*)current;
-        current += sizeof(long);
-        
-        if (compressed->tree_size < 0) {
-            ret = FILE_MAGIC_ERROR;
-            break;
-        }
+        compressed->tree_size = *(size_t*)current;
+        current += sizeof(size_t);
 
         if (current + compressed->tree_size > end) {
             ret = FILE_READ_ERROR;
@@ -232,19 +227,14 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
         compressed->huffman_tree = (Node*)current;
         current += compressed->tree_size;
 
-        if (current + sizeof(long) > end) {
+        if (current + sizeof(size_t) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
-        compressed->data_size = *(long*)current;
-        current += sizeof(long);
-        
-        if (compressed->data_size < 0) {
-            ret = FILE_MAGIC_ERROR;
-            break;
-        }
+        compressed->data_size = *(size_t*)current;
+        current += sizeof(size_t);
 
-        long compressed_bytes = (long)ceil((double)compressed->data_size / 8.0);
+        size_t compressed_bytes = (size_t)ceil((double)compressed->data_size / 8.0);
         if (current + compressed_bytes > end) {
             ret = FILE_READ_ERROR;
             break;
@@ -285,8 +275,8 @@ int write_compressed(Compressed_file *compressed, bool overwrite) {
     long file_size = 0;
     
     while (true) {
-        long name_len = strlen(compressed->original_file);
-        file_size = (sizeof(char) * 4) + sizeof(bool) + sizeof(long) + sizeof(long) + name_len * sizeof(char) + sizeof(long) + compressed->tree_size + sizeof(long) + (compressed->data_size + 7) / 8;
+        size_t name_len = strlen(compressed->original_file);
+        file_size = (sizeof(char) * 4) + sizeof(bool) + sizeof(size_t) + sizeof(long) + name_len * sizeof(char) + sizeof(size_t) + compressed->tree_size + sizeof(size_t) + (compressed->data_size + 7) / 8;
         
         if (!overwrite && access(compressed->file_name, F_OK) == 0) {
             printf("The file (%s) exists. Overwrite? [Y/n]>", compressed->file_name);
@@ -325,18 +315,18 @@ int write_compressed(Compressed_file *compressed, bool overwrite) {
         data += sizeof(char) * 4;
         memcpy(data, &compressed->is_dir, sizeof(bool));
         data += sizeof(bool);
-        memcpy(data, &compressed->original_size, sizeof(long));
-        data += sizeof(long);
+        memcpy(data, &compressed->original_size, sizeof(size_t));
+        data += sizeof(size_t);
         memcpy(data, &name_len, sizeof(long));
         data += sizeof(long);
         memcpy(data, compressed->original_file, name_len);
         data += name_len;
-        memcpy(data, &compressed->tree_size, sizeof(long));
-        data += sizeof(long);
+        memcpy(data, &compressed->tree_size, sizeof(size_t));
+        data += sizeof(size_t);
         memcpy(data, compressed->huffman_tree, compressed->tree_size);
         data += compressed->tree_size;
-        memcpy(data, &compressed->data_size, sizeof(long));
-        data += sizeof(long);
+        memcpy(data, &compressed->data_size, sizeof(size_t));
+        data += sizeof(size_t);
         memcpy(data, compressed->compressed_data, (compressed->data_size + 7) / 8);
         
         if (msync(map, file_size, MS_SYNC) == -1) {

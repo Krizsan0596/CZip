@@ -165,7 +165,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
  */
 long serialize_item(Directory_item *item, FILE *f) {
     long data_size = 0;
-    long item_size = sizeof(bool) + ((item->is_dir) ? (strlen(item->dir_path) + 1 + sizeof(int)) : (sizeof(long) + strlen(item->file_path) + 1 + item->file_size));
+    long item_size = sizeof(bool) + ((item->is_dir) ? (strlen(item->dir_path) + 1 + sizeof(int)) : (sizeof(size_t) + strlen(item->file_path) + 1 + item->file_size));
     
     if (fwrite(&item_size, sizeof(long), 1, f) != 1) {
         return FILE_WRITE_ERROR;
@@ -190,10 +190,10 @@ long serialize_item(Directory_item *item, FILE *f) {
         data_size += path_len;
     }
     else {
-        if (fwrite(&item->file_size, sizeof(long), 1, f) != 1) {
+        if (fwrite(&item->file_size, sizeof(size_t), 1, f) != 1) {
             return FILE_WRITE_ERROR;
         }
-        data_size += sizeof(long);
+        data_size += sizeof(size_t);
         
         size_t path_len = strlen(item->file_path) + 1;
         if (fwrite(item->file_path, sizeof(char), path_len, f) != path_len) {
@@ -291,7 +291,7 @@ long deserialize_item(Directory_item *item, FILE *f) {
         }
         read_size += sizeof(int);
         
-        int path_len = archive_size - sizeof(bool) - sizeof(int);
+        size_t path_len = archive_size - sizeof(bool) - sizeof(int);
         item->dir_path = malloc(sizeof(char) * path_len);
         if (item->dir_path == NULL) return MALLOC_ERROR;
         
@@ -303,12 +303,12 @@ long deserialize_item(Directory_item *item, FILE *f) {
         read_size += sizeof(char) * path_len;
     }
     else {
-        if (fread(&item->file_size, sizeof(long), 1, f) != 1) {
+        if (fread(&item->file_size, sizeof(size_t), 1, f) != 1) {
             return FILE_READ_ERROR;
         }
-        read_size += sizeof(long);
+        read_size += sizeof(size_t);
         
-        int path_len = archive_size - sizeof(bool) - sizeof(long) - item->file_size;
+        size_t path_len = archive_size - sizeof(bool) - sizeof(size_t) - item->file_size;
         item->file_path = malloc(path_len);
         if (item->file_path == NULL) return MALLOC_ERROR;
         
