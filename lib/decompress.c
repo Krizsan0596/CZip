@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include "file.h"
 #include "decompress.h"
 #include "directory.h"
@@ -69,6 +70,8 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
     *original_name = NULL;
 
     Compressed_file *compressed_file = NULL;
+    const char *mmap_ptr = NULL;
+    long mmap_size = 0;
     int res = 0;
 
     while (true) {
@@ -79,8 +82,8 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
             break;
         }
 
-        int read_res = read_compressed(args.input_file, compressed_file);
-        if (read_res != 0) {
+        int read_res = read_compressed(args.input_file, compressed_file, &mmap_ptr);
+        if (read_res < 0) {
             if (read_res == FILE_MAGIC_ERROR) {
                 fprintf(stderr, "The compressed file (%s) is corrupted and could not be read.\n", args.input_file);
                 res = EBADF;
@@ -93,6 +96,7 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
             }
             break;
         }
+        mmap_size = read_res;
 
         if (compressed_file->original_size <= 0) {
             fprintf(stderr, "The compressed file (%s) is corrupted and could not be read.\n", args.input_file);
@@ -125,11 +129,14 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         break;
     }
 
+    if (mmap_ptr != NULL) {
+        munmap((void*)mmap_ptr, mmap_size);
+    }
+
     if (compressed_file != NULL) {
         free(compressed_file->file_name);
         free(compressed_file->original_file);
         free(compressed_file->huffman_tree);
-        free(compressed_file->compressed_data);
         free(compressed_file);
     }
 

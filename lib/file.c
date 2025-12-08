@@ -84,13 +84,16 @@ int write_raw(char *file_name, char *data, long file_size, bool overwrite){
 
 /*
  * Reads the stored Compressed_file format and verifies the required data is present.
- * Allocates all necessary buffers and populates the Compressed_file structure written by write_compressed.
+ * Allocates buffers for strings and tree, but points compressed_data directly into the mmap.
+ * Caller must munmap using the returned mmap_ptr and size (returned as function result).
  */
-int read_compressed(char file_name[], Compressed_file *compressed){
+int read_compressed(char file_name[], Compressed_file *compressed, const char **mmap_ptr){
     int ret = SUCCESS;
-    FILE* f = fopen(file_name, "rb");
-    if (f == NULL) {
-        return FILE_READ_ERROR; 
+    const char* data = NULL;
+    int file_size = read_raw(file_name, &data);
+    
+    if (file_size < 0) {
+        return file_size;
     }
 
     compressed->original_file = NULL;
@@ -98,86 +101,99 @@ int read_compressed(char file_name[], Compressed_file *compressed){
     compressed->compressed_data = NULL;
     compressed->file_name = NULL;
 
+    const char* current = data;
+    const char* end = data + file_size;
+
     while (true) {
-        if (fread(compressed->magic, sizeof(char), sizeof(magic), f) != sizeof(magic)) {
+        if (current + sizeof(magic) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        memcpy(compressed->magic, current, sizeof(magic));
+        current += sizeof(magic);
 
         if (memcmp(compressed->magic, magic, sizeof(magic)) != 0) {
             ret = FILE_MAGIC_ERROR;
             break;
         }
 
-        if (fread(&compressed->is_dir, sizeof(bool), 1, f) != 1) {
+        if (current + sizeof(bool) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        compressed->is_dir = *(bool*)current;
+        current += sizeof(bool);
 
-        if (fread(&compressed->original_size, sizeof(long), 1, f) != 1) {
+        if (current + sizeof(long) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        compressed->original_size = *(long*)current;
+        current += sizeof(long);
 
         long name_len = 0;
-        if (fread(&name_len, sizeof(long), 1, f) != 1) {
+        if (current + sizeof(long) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        name_len = *(long*)current;
+        current += sizeof(long);
+        
         if (name_len < 0) {
             ret = FILE_MAGIC_ERROR;
             break;
         }
 
+        if (current + name_len > end) {
+            ret = FILE_READ_ERROR;
+            break;
+        }
         compressed->original_file = (char*)malloc(name_len + 1);
         if (compressed->original_file == NULL) {
             ret = MALLOC_ERROR;
             break;
         }
-        if ((long)fread(compressed->original_file, sizeof(char), name_len, f) != name_len) {
-            ret = FILE_READ_ERROR;
-            break;
-        }
+        memcpy(compressed->original_file, current, name_len);
         compressed->original_file[name_len] = '\0';
+        current += name_len;
 
-        if (fread(&compressed->tree_size, sizeof(long), 1, f) != 1) {
+        if (current + sizeof(long) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        compressed->tree_size = *(long*)current;
+        current += sizeof(long);
+        
         if (compressed->tree_size < 0) {
             ret = FILE_MAGIC_ERROR;
             break;
         }
 
-        compressed->huffman_tree = (Node*)malloc(compressed->tree_size);
-        if (compressed->huffman_tree == NULL) {
-            ret = MALLOC_ERROR;
-            break;
-        }
-        if ((long)fread(compressed->huffman_tree, sizeof(char), compressed->tree_size, f) != compressed->tree_size) {
+        if (current + compressed->tree_size > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        compressed->huffman_tree = (Node*)current;
+        current += compressed->tree_size;
 
-        if (fread(&compressed->data_size, sizeof(long), 1, f) != 1) {
+        if (current + sizeof(long) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        compressed->data_size = *(long*)current;
+        current += sizeof(long);
+        
         if (compressed->data_size < 0) {
             ret = FILE_MAGIC_ERROR;
             break;
         }
 
         long compressed_bytes = (long)ceil((double)compressed->data_size / 8.0);
-        compressed->compressed_data = (char*)malloc(compressed_bytes * sizeof(char));
-        if (compressed->compressed_data == NULL) {
-            ret = MALLOC_ERROR;
-            break;
-        }
-        if ((long)fread(compressed->compressed_data, sizeof(char), compressed_bytes, f) != compressed_bytes) {
+        if (current + compressed_bytes > end) {
             ret = FILE_READ_ERROR;
             break;
         }
+        compressed->compressed_data = (char*)current;
 
         compressed->file_name = strdup(file_name);
         if (compressed->file_name == NULL) {
@@ -188,20 +204,19 @@ int read_compressed(char file_name[], Compressed_file *compressed){
         break;
     }
 
-    fclose(f);
-
     if (ret != SUCCESS) {
+        munmap((void*)data, file_size);
         free(compressed->original_file);
-        free(compressed->huffman_tree);
-        free(compressed->compressed_data);
         free(compressed->file_name);
         compressed->original_file = NULL;
         compressed->huffman_tree = NULL;
         compressed->compressed_data = NULL;
         compressed->file_name = NULL;
+        return ret;
     }
 
-    return ret;
+    *mmap_ptr = data;
+    return file_size;
 }
 /*
  * Serializes the provided structure and writes it to the given file.
