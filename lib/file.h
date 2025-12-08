@@ -1,7 +1,7 @@
 #ifndef FILE_H
 #define FILE_H
 #include "data_types.h"
-#include <stdio_ext.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 int read_raw(char file_name[], const char** data);

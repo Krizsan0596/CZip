@@ -8,7 +8,6 @@
 #include <sys/mman.h>
 #include "file.h"
 #include "decompress.h"
-#include "directory.h"
 
 /*
  * Traverses the Huffman tree to recreate the original data bit by bit.
