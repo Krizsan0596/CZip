@@ -22,7 +22,7 @@ long get_file_size(FILE *f){
     long current = ftell(f);
     if (fseek(f, 0, SEEK_END) != 0) return FILE_READ_ERROR;
     long size = ftell(f);
-    fseek(f, 0, current);
+    if (fseek(f, current, SEEK_SET) != 0) return FILE_READ_ERROR;
     return size;
 } 
 
@@ -54,6 +54,33 @@ int read_raw(char file_name[], const char** data){
     void *map = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (map == MAP_FAILED) return FILE_READ_ERROR;
     *data = map;
+    return file_size;
+}
+
+/*
+ * Reads data from an open FILE* into an allocated buffer.
+ * Returns the number of bytes read on success or a negative code on error.
+ * Caller must free the returned buffer.
+ */
+int read_from_file(FILE *f, char** data) {
+    if (f == NULL) return FILE_READ_ERROR;
+    
+    long file_size = get_file_size(f);
+    if (file_size < 0) return FILE_READ_ERROR;
+    if (file_size == 0) return EMPTY_FILE;
+    
+    rewind(f);
+    
+    *data = malloc(file_size);
+    if (*data == NULL) return MALLOC_ERROR;
+    
+    size_t bytes_read = fread(*data, 1, file_size, f);
+    if (bytes_read != (size_t)file_size) {
+        free(*data);
+        *data = NULL;
+        return FILE_READ_ERROR;
+    }
+    
     return file_size;
 }
 
