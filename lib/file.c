@@ -147,7 +147,7 @@ int write_raw(char *file_name, char **data, long file_size, bool overwrite){
 int read_compressed(char file_name[], Compressed_file *compressed, const char **mmap_ptr){
     int ret = SUCCESS;
     const char* data = NULL;
-    int file_size = read_raw(file_name, &data);
+    long file_size = read_raw(file_name, &data);
     
     if (file_size < 0) {
         return file_size;
