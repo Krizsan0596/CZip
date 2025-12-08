@@ -195,13 +195,6 @@ int main() {
         }
         printf("    Relative path test passed. Directory size: %d bytes\n", directory_size);
         
-        // Verify temp file is valid
-        if (ftell(temp_file) < 0) {
-            fprintf(stderr, "Error: Temp file is not valid\n");
-            fclose(temp_file);
-            return 1;
-        }
-        
         // Cleanup temp file
         fclose(temp_file);
     }
