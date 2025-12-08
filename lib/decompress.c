@@ -60,8 +60,8 @@ int decompress(Compressed_file *compressed, char *raw) {
 
 /*
  * Reads the compressed file, decodes the Huffman data, and returns the raw content.
- * The caller handles further processing of the output (writing files, restoring directories). The
- * output pointers must be valid, non-NULL values supplied by the caller orchestrating the process.
+ * The caller handles further processing of the output (writing files, restoring directories).
+ * Output pointer arguments must be valid addresses; the function allocates and assigns the data.
  */
 int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_directory, char **original_name) {
     *raw_data = NULL;

@@ -16,7 +16,7 @@
 
 /*
  * Determines the length of an open file.
- * Returns the size on success or -1 on failure.
+ * Returns the size on success or FILE_READ_ERROR on failure.
  */
 long get_file_size(FILE *f){
     long current = ftell(f);
@@ -84,7 +84,8 @@ int write_raw(char *file_name, char *data, long file_size, bool overwrite){
 
 /*
  * Reads the stored Compressed_file format and verifies the required data is present.
- * Allocates buffers for strings and tree, but points compressed_data directly into the mmap.
+ * File content is mmapped; the Huffman tree and compressed data pointers reference that mapping,
+ * while file names are duplicated onto the heap.
  * Caller must munmap using the returned mmap_ptr and size (returned as function result).
  */
 int read_compressed(char file_name[], Compressed_file *compressed, const char **mmap_ptr){
@@ -219,8 +220,8 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
     return file_size;
 }
 /*
- * Serializes the provided structure and writes it to the given file.
- * The actual write is performed by write_raw.
+ * Serializes the provided structure and writes it directly into a newly mmapped output file.
+ * Prompts for overwrite (unless forced) and persists the data with msync before closing.
  */
 int write_compressed(Compressed_file *compressed, bool overwrite) {
     int ret = SUCCESS;

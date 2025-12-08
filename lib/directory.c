@@ -14,8 +14,8 @@
 #include <limits.h>
 
 /*
- * Recursively walks the directory and stores each file's data in an array.
- * Returns the directory size in bytes on success or a negative code on failure.
+ * Recursively walks the directory and serializes every entry into the provided stream.
+ * Returns the total size of all file payloads on success or a negative code on failure.
  */
 long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) {
     DIR *directory = NULL;
