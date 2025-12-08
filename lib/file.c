@@ -22,7 +22,7 @@ long get_file_size(FILE *f){
     long current = ftell(f);
     if (fseek(f, 0, SEEK_END) != 0) return FILE_READ_ERROR;
     long size = ftell(f);
-    fseek(f, current, SEEK_SET);
+    if (fseek(f, current, SEEK_SET) != 0) return FILE_READ_ERROR;
     return size;
 } 
 
