@@ -248,11 +248,19 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
             }
             fclose(f);
         } else {
-            int ret = write_raw(full_path, item->file_data, item->file_size, force);
+            char *mmap_ptr = NULL;
+            int ret = write_raw(full_path, &mmap_ptr, item->file_size, force);
             if (ret < 0) {
                 free(full_path);
                 return FILE_WRITE_ERROR;
             }
+            memcpy(mmap_ptr, item->file_data, item->file_size);
+            if (msync(mmap_ptr, item->file_size, MS_SYNC) == -1) {
+                munmap(mmap_ptr, item->file_size);
+                free(full_path);
+                return FILE_WRITE_ERROR;
+            }
+            munmap(mmap_ptr, item->file_size);
         }
     }
     free(full_path);

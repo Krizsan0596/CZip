@@ -59,7 +59,8 @@ int decompress(Compressed_file *compressed, char *raw) {
 
 /*
  * Reads the compressed file, decodes the Huffman data, and returns the raw content.
- * The caller handles further processing of the output (writing files, restoring directories).
+ * For files: creates a memory-mapped output file and decompresses directly to it, then unmaps.
+ * For directories: allocates a buffer for serialized data (caller must free).
  * Output pointer arguments must be valid addresses; the function allocates and assigns the data.
  */
 int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_directory, char **original_name) {
@@ -71,6 +72,8 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
     Compressed_file *compressed_file = NULL;
     const char *mmap_ptr = NULL;
     long mmap_size = 0;
+    char *output_mmap = NULL;
+    long output_mmap_size = 0;
     int res = 0;
 
     while (true) {
@@ -103,11 +106,42 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
             break;
         }
 
-        *raw_data = malloc(compressed_file->original_size * sizeof(char));
-        if (*raw_data == NULL) {
+        *is_directory = compressed_file->is_dir;
+        *original_name = strdup(compressed_file->original_file);
+        if (*original_name == NULL) {
             fprintf(stderr, "Failed to allocate memory.\n");
             res = ENOMEM;
             break;
+        }
+
+        if (compressed_file->is_dir) {
+            *raw_data = malloc(compressed_file->original_size * sizeof(char));
+            if (*raw_data == NULL) {
+                fprintf(stderr, "Failed to allocate memory.\n");
+                res = ENOMEM;
+                break;
+            }
+        } else {
+            char *target = args.output_file != NULL ? args.output_file : compressed_file->original_file;
+            int write_res = write_raw(target, raw_data, compressed_file->original_size, args.force);
+            if (write_res < 0) {
+                if (write_res == FILE_WRITE_ERROR) {
+                    fprintf(stderr, "Failed to write the output file (%s).\n", target);
+                    res = EIO;
+                } else if (write_res == SCANF_FAILED) {
+                    fprintf(stderr, "Failed to read the response.\n");
+                    res = EIO;
+                } else if (write_res == NO_OVERWRITE) {
+                    fprintf(stderr, "The file was not overwritten.\n");
+                    res = ECANCELED;
+                } else {
+                    fprintf(stderr, "An error occurred while writing the output file (%s).\n", target);
+                    res = EIO;
+                }
+                break;
+            }
+            output_mmap = *raw_data;
+            output_mmap_size = write_res;
         }
 
         int decompress_result = decompress(compressed_file, *raw_data);
@@ -118,18 +152,21 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         }
 
         *raw_size = compressed_file->original_size;
-        *is_directory = compressed_file->is_dir;
-        *original_name = strdup(compressed_file->original_file);
-        if (*original_name == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
-            res = ENOMEM;
-            break;
-        }
         break;
     }
 
     if (mmap_ptr != NULL) {
         munmap((void*)mmap_ptr, mmap_size);
+    }
+
+    if (output_mmap != NULL) {
+        if (msync(output_mmap, output_mmap_size, MS_SYNC) == -1) {
+            fprintf(stderr, "Warning: Failed to sync output file.\n");
+        }
+        munmap(output_mmap, output_mmap_size);
+        if (res == 0) {
+            *raw_data = NULL;
+        }
     }
 
     if (compressed_file != NULL) {
@@ -138,9 +175,17 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         free(compressed_file);
     }
 
-    if (res != 0 && raw_data != NULL && *raw_data != NULL) {
-        free(*raw_data);
-        *raw_data = NULL;
+    if (res != 0) {
+        if (*raw_data != NULL && !*is_directory) {
+            *raw_data = NULL;
+        } else if (*raw_data != NULL && *is_directory) {
+            free(*raw_data);
+            *raw_data = NULL;
+        }
+        if (*original_name != NULL) {
+            free(*original_name);
+            *original_name = NULL;
+        }
     }
 
     return res;

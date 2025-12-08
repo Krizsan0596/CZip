@@ -53,7 +53,7 @@ static int invoke_run_decompression(Arguments args) {
 
     int res = run_decompression(args, &raw_data, &raw_size, &is_dir, &original_name);
     if (res != 0) {
-        free(raw_data);
+        if (is_dir && raw_data != NULL) free(raw_data);
         free(original_name);
         return res;
     }
@@ -69,16 +69,9 @@ static int invoke_run_decompression(Arguments args) {
         }
         fclose(f);
         res = restore_directory(args.output_file, args.force, args.no_preserve_perms);
-    } else {
-        char *target = args.output_file != NULL ? args.output_file : original_name;
-        int write_res = write_raw(target, raw_data, raw_size, args.force);
-        if (write_res < 0) {
-            fprintf(stderr, "An error occurred while writing the output file (%s).\n", target);
-            res = EIO;
-        }
+        free(raw_data);
     }
 
-    free(raw_data);
     free(original_name);
     return res;
 }
@@ -190,11 +183,14 @@ int main() {
         char *test_output = "test_decomp_output.txt";
         
         // Write test input file
-        int write_res = write_raw(test_input, test_content, strlen(test_content), true);
+        char *mmap_ptr1 = NULL;
+        int write_res = write_raw(test_input, &mmap_ptr1, strlen(test_content), true);
         if (write_res < 0) {
             fprintf(stderr, "Error: Failed to write test input file\n");
             return 1;
         }
+        memcpy(mmap_ptr1, test_content, strlen(test_content));
+        munmap(mmap_ptr1, write_res);
         
         // Use run_compression to create a compressed file
         Arguments compress_args = {0};
@@ -267,11 +263,14 @@ int main() {
         char *test_compressed = "test_default_input.huff";
         
         // Write test input file
-        int write_res = write_raw(test_input, test_content, strlen(test_content), true);
+        char *mmap_ptr2 = NULL;
+        int write_res = write_raw(test_input, &mmap_ptr2, strlen(test_content), true);
         if (write_res < 0) {
             fprintf(stderr, "Error: Failed to write test input file\n");
             return 1;
         }
+        memcpy(mmap_ptr2, test_content, strlen(test_content));
+        munmap(mmap_ptr2, write_res);
         
         // Compress the file
         Arguments compress_args = {0};
