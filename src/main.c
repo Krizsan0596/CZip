@@ -4,6 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include "../lib/file.h"
 #include "../lib/compress.h"
@@ -165,7 +166,7 @@ int main(int argc, char* argv[]){
     }
     
     if (args.compress_mode) {
-        char *data = NULL;
+        const char *data = NULL;
         long data_len = 0;
         long directory_size = 0;
         int directory_size_int = 0;
@@ -218,7 +219,7 @@ int main(int argc, char* argv[]){
         }
 
         int compress_res = run_compression(args, data, data_len, directory_size);
-        free(data);
+        munmap((void*)data, data_len);
         return compress_res;
     } else if (args.extract_mode) {
         char *raw_data = NULL;

@@ -2,6 +2,10 @@
 #include "data_types.h"
 #include <math.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
@@ -40,30 +44,17 @@ const char* get_unit(int *bytes) {
  * Reads the file into memory; the caller supplies the pointer.
  * Returns the number of bytes read on success or a negative code on error.
  */
-int read_raw(char file_name[], char** data){
-    FILE* f;
-    f = fopen(file_name, "rb");
-    if (f == NULL) return FILE_READ_ERROR; // Not exists.
-    long file_size = get_file_size(f);
-    if (file_size == 0) {
-        *data = NULL;
-        fclose(f);
-        return EMPTY_FILE;
-    }
-    *data = (char*)malloc(file_size);
-    if (*data == NULL) {
-        fclose(f);
-        return MALLOC_ERROR;
-    }
-    size_t read_size = fread(*data, sizeof(char), file_size, f);
-    if (read_size != file_size) {
-        free(*data);
-        *data = NULL;
-        fclose(f);
-        return FILE_READ_ERROR;
-    }
-    fclose(f);
-    return read_size;
+int read_raw(char file_name[], const char** data){
+    int fd = open(file_name, O_RDONLY);
+    if (fd == -1) return FILE_READ_ERROR;
+    struct stat st;
+    if (fstat(fd, &st) == -1) return FILE_READ_ERROR;
+    long file_size = st.st_size;
+    if (file_size == 0) return EMPTY_FILE;
+    void *map = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (map == MAP_FAILED) return FILE_READ_ERROR;
+    *data = map;
+    return file_size;
 }
 
 /*

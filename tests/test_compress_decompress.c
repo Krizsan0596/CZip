@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
@@ -24,14 +25,14 @@ static int invoke_run_compression(Arguments args) {
             return prep_res;
         }
         directory_size = directory_size_int;
-        int read_res = read_raw(SERIALIZED_TMP_FILE, &data);
+        int read_res = read_raw(SERIALIZED_TMP_FILE, (const char**)&data);
         if (read_res < 0) {
             return read_res;
         }
         data_len = read_res;
         remove(SERIALIZED_TMP_FILE);
     } else {
-        int read_res = read_raw(args.input_file, &data);
+        int read_res = read_raw(args.input_file, (const char**)&data);
         if (read_res < 0) {
             return read_res;
         }
@@ -40,7 +41,7 @@ static int invoke_run_compression(Arguments args) {
     }
 
     int result = run_compression(args, data, data_len, directory_size);
-    free(data);
+    munmap((void*)data, data_len);
     return result;
 }
 
@@ -229,7 +230,7 @@ int main() {
         }
         
         // Verify the decompressed content
-        char *decompressed_content = NULL;
+        const char *decompressed_content = NULL;
         int read_size = read_raw(test_output, &decompressed_content);
         if (read_size < 0) {
             fprintf(stderr, "Error: Failed to read decompressed output file\n");
@@ -242,7 +243,7 @@ int main() {
         if ((long)read_size != (long)strlen(test_content) || 
             memcmp(test_content, decompressed_content, strlen(test_content)) != 0) {
             fprintf(stderr, "Error: Decompressed content does not match original\n");
-            free(decompressed_content);
+            munmap((void*)decompressed_content, read_size);
             remove(test_input);
             remove(test_compressed);
             remove(test_output);
@@ -250,7 +251,7 @@ int main() {
         }
         
         printf("    Basic run_decompression test passed.\n");
-        free(decompressed_content);
+        munmap((void*)decompressed_content, read_size);
         
         // Cleanup
         remove(test_input);
@@ -316,19 +317,19 @@ int main() {
         }
         
         // Verify content
-        char *decompressed_content = NULL;
+        const char *decompressed_content = NULL;
         int read_size = read_raw(test_input, &decompressed_content);
         if (read_size < 0 || (long)read_size != (long)strlen(test_content) ||
             memcmp(test_content, decompressed_content, strlen(test_content)) != 0) {
             fprintf(stderr, "Error: Decompressed content does not match original\n");
-            if (decompressed_content != NULL) free(decompressed_content);
+            if (decompressed_content != NULL) munmap((void*)decompressed_content, read_size);
             remove(test_input);
             remove(test_compressed);
             return 1;
         }
         
         printf("    run_decompression with default output test passed.\n");
-        free(decompressed_content);
+        munmap((void*)decompressed_content, read_size);
         
         // Cleanup
         remove(test_input);
@@ -636,16 +637,16 @@ int main() {
         assert(decomp_result == 0);
         
         // Verify content matches
-        char *original_content = NULL;
-        char *decompressed_content = NULL;
+        const char *original_content = NULL;
+        const char *decompressed_content = NULL;
         int orig_size = read_raw(large_input, &original_content);
         int decomp_size = read_raw(large_output, &decompressed_content);
         
         assert(orig_size == decomp_size);
         assert(memcmp(original_content, decompressed_content, orig_size) == 0);
         
-        free(original_content);
-        free(decompressed_content);
+        munmap((void*)original_content, orig_size);
+        munmap((void*)decompressed_content, decomp_size);
         remove(large_input);
         remove(large_compressed);
         remove(large_output);

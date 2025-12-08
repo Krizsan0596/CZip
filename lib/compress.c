@@ -29,7 +29,7 @@ void sort_nodes(Node *nodes, int len) {
  * Iterates through the raw data and increments the 256-element frequency array in place.
  * Returns 0 after processing every byte; the caller must supply a zeroed frequencies array.
  */
-int count_frequencies(char *data, long data_len, long *frequencies) {
+int count_frequencies(const char *data, long data_len, long *frequencies) {
     for (int i = 0; i < data_len; i++){
         frequencies[(unsigned char) data[i]] += 1;
     }
@@ -180,7 +180,7 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
  * Loads the data needed for decompression into a Compressed_file structure.
  * Returns 0 on success or a negative value for allocation or traversal errors.
  */
-int compress(char *original_data, long data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
+int compress(const char *original_data, long data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
     if (data_len == 0) {
         compressed_file->data_size = 0;
         compressed_file->compressed_data = NULL;
@@ -267,7 +267,7 @@ int compress(char *original_data, long data_len, Node *nodes, Node *root_node, c
  * The caller must supply the raw data beforehand (file read, directory serialization).
  * Reads directory mode from args.directory. Returns 0 on success or a negative error code.
  */
-int run_compression(Arguments args, char *data, long data_len, long directory_size) {
+int run_compression(Arguments args, const char *data, long data_len, long directory_size) {
     // If the user did not provide an output file, generate one.
     bool output_generated = false;
     if (args.output_file == NULL) {

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
@@ -112,7 +113,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                     current_item = file;
                     break;
                 }
-                file.file_size = read_raw(newpath, &file.file_data);
+                file.file_size = read_raw(newpath, (const char**)&file.file_data);
                 if (file.file_size < 0) {
                     if (file.file_size == EMPTY_FILE) {
                         /* Empty files are valid - include them with size 0 */
@@ -134,7 +135,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 }
                 *data_size += bytes_written;
                 free(file.file_path);
-                free(file.file_data);
+                if (file.file_data != NULL) munmap((void*)file.file_data, file.file_size);
             }
             free(newpath);
             newpath = NULL;
@@ -150,7 +151,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
             free(current_item.dir_path);
         } else {
             free(current_item.file_path);
-            free(current_item.file_data);
+            if (current_item.file_data != NULL) munmap((void*)current_item.file_data, current_item.file_size);
         }
     }
     free(newpath);

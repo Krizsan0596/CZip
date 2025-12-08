@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
@@ -61,7 +62,7 @@ static void free_cache(char **cache) {
 }
 
 static int invoke_run_compression(Arguments args) {
-    char *data = NULL;
+    const char *data = NULL;
     long data_len = 0;
     long directory_size = 0;
 
@@ -72,14 +73,14 @@ static int invoke_run_compression(Arguments args) {
             return prep_res;
         }
         directory_size = directory_size_int;
-        int read_res = read_raw(SERIALIZED_TMP_FILE, &data);
+        int read_res = read_raw(SERIALIZED_TMP_FILE, (const char**)&data);
         if (read_res < 0) {
             return read_res;
         }
         remove(SERIALIZED_TMP_FILE);
         data_len = read_res;
     } else {
-        int read_res = read_raw(args.input_file, &data);
+        int read_res = read_raw(args.input_file, (const char**)&data);
         if (read_res < 0) {
             return read_res;
         }
@@ -88,7 +89,7 @@ static int invoke_run_compression(Arguments args) {
     }
 
     int result = run_compression(args, data, data_len, directory_size);
-    free(data);
+    munmap((void*)data, data_len);
     return result;
 }
 
