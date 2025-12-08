@@ -136,7 +136,6 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
     if (compressed_file != NULL) {
         free(compressed_file->file_name);
         free(compressed_file->original_file);
-        free(compressed_file->huffman_tree);
         free(compressed_file);
     }
 
