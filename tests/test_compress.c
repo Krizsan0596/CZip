@@ -1,12 +1,10 @@
 #include <assert.h>
-#include <math.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <errno.h>
 #include <time.h>
 #include <dirent.h>
 #include "../lib/file.h"
