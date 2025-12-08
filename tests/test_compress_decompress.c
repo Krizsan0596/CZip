@@ -369,6 +369,106 @@ int main() {
         printf("    run_decompression error handling test passed. Error code: %d\n", result);
     }
     
+    // Test 4: run_decompression with invalid tree_size metadata
+    printf("  Test 4: run_decompression with invalid tree_size...\n");
+    {
+        const char *invalid_tree_file = "test_invalid_tree_size.huff";
+        FILE *f = fopen(invalid_tree_file, "wb");
+        assert(f != NULL);
+
+        char magic_bytes[4] = {'H', 'U', 'F', 'F'};
+        bool is_dir = false;
+        long original_size = 1;
+        const char *original_name = "invalid_tree";
+        long name_len = strlen(original_name);
+        long negative_tree_size = -1; // Invalid metadata
+
+        fwrite(magic_bytes, 1, sizeof(magic_bytes), f);
+        fwrite(&is_dir, sizeof(bool), 1, f);
+        fwrite(&original_size, sizeof(long), 1, f);
+        fwrite(&name_len, sizeof(long), 1, f);
+        fwrite(original_name, 1, name_len, f);
+        fwrite(&negative_tree_size, sizeof(long), 1, f);
+        fclose(f);
+
+        Arguments decomp_args = {0};
+        decomp_args.compress_mode = false;
+        decomp_args.extract_mode = true;
+        decomp_args.force = true;
+        decomp_args.directory = false;
+        decomp_args.input_file = (char *)invalid_tree_file;
+        decomp_args.output_file = "output_invalid_tree.txt";
+
+        char *raw_data = (char *)0x1; // Non-NULL to verify reset
+        long raw_size = -1;
+        bool is_directory = true;
+        char *original_name_out = (char *)0x1;
+
+        int result = run_decompression(decomp_args, &raw_data, &raw_size, &is_directory, &original_name_out);
+        assert(result == EBADF);
+        assert(raw_data == NULL);
+        assert(raw_size == 0);
+        assert(is_directory == false);
+        assert(original_name_out == NULL);
+
+        remove(invalid_tree_file);
+        remove(decomp_args.output_file);
+        printf("    Invalid tree_size metadata test passed.\n");
+    }
+
+    // Test 5: run_decompression with truncated compressed data
+    printf("  Test 5: run_decompression with truncated data...\n");
+    {
+        const char *truncated_file = "test_truncated_data.huff";
+        FILE *f = fopen(truncated_file, "wb");
+        assert(f != NULL);
+
+        char magic_bytes[4] = {'H', 'U', 'F', 'F'};
+        bool is_dir = false;
+        long original_size = 1;
+        const char *original_name = "truncated";
+        long name_len = strlen(original_name);
+        Node leaf = { .type = LEAF, .frequency = 1, .data = 'A' };
+        long tree_size = sizeof(Node);
+        long data_size_bits = 16; // Requires two bytes, but only one will be provided
+        unsigned char partial_data = 0xFF;
+
+        fwrite(magic_bytes, 1, sizeof(magic_bytes), f);
+        fwrite(&is_dir, sizeof(bool), 1, f);
+        fwrite(&original_size, sizeof(long), 1, f);
+        fwrite(&name_len, sizeof(long), 1, f);
+        fwrite(original_name, 1, name_len, f);
+        fwrite(&tree_size, sizeof(long), 1, f);
+        fwrite(&leaf, 1, sizeof(Node), f);
+        fwrite(&data_size_bits, sizeof(long), 1, f);
+        fwrite(&partial_data, 1, 1, f); // Intentionally short
+        fclose(f);
+
+        Arguments decomp_args = {0};
+        decomp_args.compress_mode = false;
+        decomp_args.extract_mode = true;
+        decomp_args.force = true;
+        decomp_args.directory = false;
+        decomp_args.input_file = (char *)truncated_file;
+        decomp_args.output_file = "output_truncated.txt";
+
+        char *raw_data = (char *)0x1;
+        long raw_size = -1;
+        bool is_directory = true;
+        char *original_name_out = (char *)0x1;
+
+        int result = run_decompression(decomp_args, &raw_data, &raw_size, &is_directory, &original_name_out);
+        assert(result == EIO);
+        assert(raw_data == NULL);
+        assert(raw_size == 0);
+        assert(is_directory == false);
+        assert(original_name_out == NULL);
+
+        remove(truncated_file);
+        remove(decomp_args.output_file);
+        printf("    Truncated compressed data test passed.\n");
+    }
+
     printf("All run_decompression tests passed!\n");
 
     // ==========================================
