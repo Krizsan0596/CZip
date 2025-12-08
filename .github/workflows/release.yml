@@ -5,6 +5,8 @@ on:
     tags:
       - '*'
 
+permissions:
+  contents: read
 jobs:
   build-linux:
     runs-on: ubuntu-latest
@@ -27,7 +29,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Run tests (optional)
+      - name: Run tests
         run: ctest --test-dir build
 
       - name: Package binary
@@ -78,6 +80,8 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs:
       - build-linux
       - build-windows
