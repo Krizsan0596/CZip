@@ -52,7 +52,6 @@ void test_file_io() {
     free(original_data.compressed_data);
     free(original_data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("test.huf");
@@ -97,7 +96,6 @@ void test_file_io_with_empty_filename() {
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("empty_name.huf");
@@ -148,7 +146,6 @@ void test_file_io_with_long_filename() {
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("long_name.huf");
@@ -226,7 +223,6 @@ void test_file_io_with_large_tree() {
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("large_tree.huf");
@@ -281,7 +277,6 @@ void test_file_io_with_binary_data() {
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("binary.huf");
@@ -324,7 +319,6 @@ void test_file_io_directory_flag() {
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("directory.huf");
@@ -365,7 +359,6 @@ void test_file_io_special_chars_in_original_filename() {
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("special.huf");
@@ -428,7 +421,6 @@ void test_file_io_very_large_compressed_data() {
     free(data.compressed_data);
     free(data.file_name);
     free(read_data.original_file);
-    free(read_data.huffman_tree);
     free(read_data.file_name);
 
     remove("huge.huf");

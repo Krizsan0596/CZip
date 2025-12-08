@@ -223,33 +223,81 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
  * The actual write is performed by write_raw.
  */
 int write_compressed(Compressed_file *compressed, bool overwrite) {
-    long name_len = strlen(compressed->original_file);
-    long file_size = (sizeof(char) * 4) + sizeof(bool) + sizeof(long) + sizeof(long) + name_len * sizeof(char) + sizeof(long) + compressed->tree_size + sizeof(long) + (compressed->data_size + 7) / 8;
-    char *data = malloc(file_size);
-    if (data == NULL) {
-        return MALLOC_ERROR;
+    int ret = SUCCESS;
+    int fd = -1;
+    void *map = NULL;
+    long file_size = 0;
+    
+    while (true) {
+        long name_len = strlen(compressed->original_file);
+        file_size = (sizeof(char) * 4) + sizeof(bool) + sizeof(long) + sizeof(long) + name_len * sizeof(char) + sizeof(long) + compressed->tree_size + sizeof(long) + (compressed->data_size + 7) / 8;
+        
+        if (!overwrite && access(compressed->file_name, F_OK) == 0) {
+            printf("The file (%s) exists. Overwrite? [Y/n]>", compressed->file_name);
+            char input;
+            if (scanf(" %c", &input) != 1) {
+                ret = SCANF_FAILED;
+                break;
+            }
+            if (tolower(input) != 'y') {
+                ret = NO_OVERWRITE;
+                break;
+            }
+        }
+        
+        fd = open(compressed->file_name, O_CREAT | O_TRUNC | O_RDWR, 0644);
+        if (fd == -1) {
+            ret = FILE_WRITE_ERROR;
+            break;
+        }
+        
+        if (ftruncate(fd, file_size) == -1) {
+            ret = FILE_WRITE_ERROR;
+            break;
+        }
+        
+        map = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (map == MAP_FAILED) {
+            ret = FILE_WRITE_ERROR;
+            break;
+        }
+        
+        unsigned char *data = map;
+        for (int i = 0; i < 4; i++) {
+            data[i] = magic[i];
+        }
+        data += sizeof(char) * 4;
+        memcpy(data, &compressed->is_dir, sizeof(bool));
+        data += sizeof(bool);
+        memcpy(data, &compressed->original_size, sizeof(long));
+        data += sizeof(long);
+        memcpy(data, &name_len, sizeof(long));
+        data += sizeof(long);
+        memcpy(data, compressed->original_file, name_len);
+        data += name_len;
+        memcpy(data, &compressed->tree_size, sizeof(long));
+        data += sizeof(long);
+        memcpy(data, compressed->huffman_tree, compressed->tree_size);
+        data += compressed->tree_size;
+        memcpy(data, &compressed->data_size, sizeof(long));
+        data += sizeof(long);
+        memcpy(data, compressed->compressed_data, (compressed->data_size + 7) / 8);
+        
+        if (msync(map, file_size, MS_SYNC) == -1) {
+            ret = FILE_WRITE_ERROR;
+            break;
+        }
+        
+        ret = file_size;
+        break;
     }
-    char *current = &data[0];
-    for (int i = 0; i < 4; i++) {
-        data[i] = magic[i];
+    
+    if (map != NULL && map != MAP_FAILED) {
+        munmap(map, file_size);
     }
-    current += 4;
-    memcpy(current, &compressed->is_dir, sizeof(bool));
-    current += sizeof(bool);
-    memcpy(current, &compressed->original_size, sizeof(long));
-    current += sizeof(long);
-    memcpy(current, &name_len, sizeof(long));
-    current += sizeof(long);
-    memcpy(current, compressed->original_file, name_len);
-    current += name_len;
-    memcpy(current, &compressed->tree_size, sizeof(long));
-    current += sizeof(long);
-    memcpy(current, compressed->huffman_tree, compressed->tree_size);
-    current += compressed->tree_size;
-    memcpy(current, &compressed->data_size, sizeof(long));
-    current += sizeof(long);
-    memcpy(current, compressed->compressed_data, (compressed->data_size + 7) / 8);
-    int res = write_raw(compressed->file_name, data, file_size, overwrite);
-    free(data);
-    return res;
+    if (fd != -1) {
+        close(fd);
+    }
+    
+    return ret;
 }
