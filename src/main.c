@@ -227,7 +227,7 @@ int main(int argc, char* argv[]){
 
         int decomp_res = run_decompression(args, &raw_data, &raw_size, &is_dir, &original_name);
         if (decomp_res != 0) {
-            free(raw_data);
+            if (is_dir && raw_data != NULL) free(raw_data);
             free(original_name);
             return decomp_res;
         }
@@ -258,24 +258,9 @@ int main(int argc, char* argv[]){
                     fprintf(stderr, "Failed to restore the directory.\n");
                 }
             }
-        } else {
-            char *target = args.output_file != NULL ? args.output_file : original_name;
-            int write_res = write_raw(target, raw_data, raw_size, args.force);
-            if (write_res < 0) {
-                if (write_res == FILE_WRITE_ERROR) {
-                    fprintf(stderr, "Failed to write the output file (%s).\n", target);
-                } else if (write_res == SCANF_FAILED) {
-                    fprintf(stderr, "Failed to read the response.\n");
-                } else if (write_res == NO_OVERWRITE) {
-                    fprintf(stderr, "The file was not overwritten.\n");
-                } else {
-                    fprintf(stderr, "An error occurred while writing the output file (%s).\n", target);
-                }
-                res = EIO;
-            }
+            free(raw_data);
         }
 
-        free(raw_data);
         free(original_name);
         return res;
     }

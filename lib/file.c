@@ -58,28 +58,56 @@ int read_raw(char file_name[], const char** data){
 }
 
 /*
- * Writes the given buffer to disk; prompts before overwriting when overwrite is false.
- * Verifies the entire file was written; returns negative error codes on failure.
+ * Creates a file and memory maps it for writing.
+ * Returns the file size on success or negative error codes on failure.
+ * Caller must munmap the returned pointer.
  */
-int write_raw(char *file_name, char *data, long file_size, bool overwrite){
-    FILE* f;
-    f = fopen(file_name, "r");
-    if (f != NULL) { 
-        if (!overwrite) {
-            fclose(f);
+int write_raw(char *file_name, char **data, long file_size, bool overwrite){
+    int fd = -1;
+    void *map = NULL;
+    int ret = SUCCESS;
+    
+    while (true) {
+        if (!overwrite && access(file_name, F_OK) == 0) {
             printf("The file (%s) exists. Overwrite? [Y/n]>", file_name);
             char input;
-            if (scanf(" %c", &input) != 1) return SCANF_FAILED; 
-            if (tolower(input) != 'y') return NO_OVERWRITE;
+            if (scanf(" %c", &input) != 1) {
+                ret = SCANF_FAILED;
+                break;
+            }
+            if (tolower(input) != 'y') {
+                ret = NO_OVERWRITE;
+                break;
+            }
         }
-        else fclose(f);
+        
+        fd = open(file_name, O_CREAT | O_TRUNC | O_RDWR, 0644);
+        if (fd == -1) {
+            ret = FILE_WRITE_ERROR;
+            break;
+        }
+        
+        if (ftruncate(fd, file_size) == -1) {
+            ret = FILE_WRITE_ERROR;
+            break;
+        }
+        
+        map = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (map == MAP_FAILED) {
+            ret = FILE_WRITE_ERROR;
+            break;
+        }
+        
+        close(fd);
+        *data = (char*)map;
+        return file_size;
     }
-    f = fopen(file_name, "wb");
-    if (f == NULL) return FILE_WRITE_ERROR;
-    long written_size = fwrite(data, sizeof(char), file_size, f);
-    fclose(f);
-    if (file_size != written_size) return FILE_WRITE_ERROR;
-    return written_size;
+    
+    if (fd != -1) {
+        close(fd);
+    }
+    
+    return ret;
 }
 
 /*
