@@ -101,7 +101,6 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
 
     /*
      * Ensure an input file was provided, then verify it exists.
-     * Uses stat() because fopen() does not work on directories.
      */
     if (args->input_file == NULL) {
         fprintf(stderr, "No input file was provided.\n");
@@ -109,8 +108,7 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
         return EINVAL;
     }
     
-    struct stat st;
-    if (stat(args->input_file, &st) != 0) {
+    if (access(args->input_file, F_OK) != 0) {
         fprintf(stderr, "The file (%s) was not found.\n", args->input_file);
         print_usage(argv[0]);
         return FILE_READ_ERROR;
