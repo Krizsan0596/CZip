@@ -48,11 +48,12 @@ int read_raw(char file_name[], const char** data){
     int fd = open(file_name, O_RDONLY);
     if (fd == -1) return FILE_READ_ERROR;
     struct stat st;
-    if (fstat(fd, &st) == -1) return FILE_READ_ERROR;
+    if (fstat(fd, &st) == -1) { close(fd); return FILE_READ_ERROR; }
     long file_size = st.st_size;
-    if (file_size == 0) return EMPTY_FILE;
+    if (file_size == 0) { close(fd); return EMPTY_FILE; }
     void *map = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (map == MAP_FAILED) return FILE_READ_ERROR;
+    if (map == MAP_FAILED) { close(fd); return FILE_READ_ERROR; }
+    close(fd);
     *data = map;
     return file_size;
 }
