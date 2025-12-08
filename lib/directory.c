@@ -357,22 +357,20 @@ long deserialize_item(Directory_item *item, FILE *f) {
 /*
  * Prepares a directory for compression.
  * Walks the directory, archives it, and serializes the data into a temporary file.
- * Returns 0 on success or a negative value on failure.
+ * Returns a FILE* on success or NULL on failure.
  */
-int prepare_directory(char *input_file, int *directory_size) {
+FILE* prepare_directory(char *input_file, int *directory_size) {
     char current_path[PATH_MAX];
     char *sep = strrchr(input_file, '/');
     char *parent_dir = NULL;
     char *file_name = NULL;
     int archive_size = 0;
     long data_len = 0;
-    int result = 0;
     FILE *temp_file = NULL;
     
     while (true) {
         if (getcwd(current_path, sizeof(current_path)) == NULL) {
             fprintf(stderr, "Failed to store the current path.\n");
-            result = DIRECTORY_ERROR;
             break;
         }
         
@@ -381,7 +379,6 @@ int prepare_directory(char *input_file, int *directory_size) {
             if (sep == input_file) {
                 parent_dir = strdup("/");
                 if (parent_dir == NULL) {
-                    result = MALLOC_ERROR;
                     break;
                 }
             }
@@ -389,7 +386,6 @@ int prepare_directory(char *input_file, int *directory_size) {
                 int parent_dir_len = sep - input_file;
                 parent_dir = malloc(parent_dir_len + 1);
                 if (parent_dir == NULL) {
-                    result = MALLOC_ERROR;
                     break;
                 }
                 strncpy(parent_dir, input_file, parent_dir_len);
@@ -397,33 +393,18 @@ int prepare_directory(char *input_file, int *directory_size) {
             }
             file_name = strdup(sep + 1);
             if (file_name == NULL) {
-                result = MALLOC_ERROR;
                 break;
             }
             if (chdir(parent_dir) != 0) {
                 fprintf(stderr, "Failed to enter the directory.\n");
-                result = DIRECTORY_ERROR;
                 break;
             }
         }
         
-        /* Build absolute path to temp file in original directory */
-        char temp_file_path[PATH_MAX];
-        int path_len = snprintf(temp_file_path, sizeof(temp_file_path), "%s/%s", current_path, SERIALIZED_TMP_FILE);
-        if (path_len >= (int)sizeof(temp_file_path)) {
-            fprintf(stderr, "The temp file path is too long.\n");
-            result = DIRECTORY_ERROR;
-            if (sep != NULL) {
-                if (chdir(current_path) != 0) {
-                    fprintf(stderr, "Failed to exit the directory.\n");
-                }
-            }
-            break;
-        }
-        temp_file = fopen(temp_file_path, "wb");
+        /* Create temporary file using tmpfile() */
+        temp_file = tmpfile();
         if (temp_file == NULL) {
-            fprintf(stderr, "Failed to open the temp file.\n");
-            result = FILE_WRITE_ERROR;
+            fprintf(stderr, "Failed to create the temp file.\n");
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
                     fprintf(stderr, "Failed to exit the directory.\n");
@@ -433,8 +414,6 @@ int prepare_directory(char *input_file, int *directory_size) {
         }
         
         long dir_size = archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &data_len, temp_file);
-        fclose(temp_file);
-        temp_file = NULL;
         
         if (dir_size < 0) {
             if (dir_size == MALLOC_ERROR) {
@@ -446,15 +425,14 @@ int prepare_directory(char *input_file, int *directory_size) {
             } else {
                 fprintf(stderr, "Failed to archive the directory.\n");
             }
-            result = dir_size;
             /* Return to the original directory even when an error occurs. */
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
                     fprintf(stderr, "Failed to exit the directory.\n");
-                    result = DIRECTORY_ERROR;
                 }
             }
-            remove(temp_file_path);
+            fclose(temp_file);
+            temp_file = NULL;
             break;
         }
         
@@ -464,20 +442,21 @@ int prepare_directory(char *input_file, int *directory_size) {
         if (sep != NULL) {
             if (chdir(current_path) != 0) {
                 fprintf(stderr, "Failed to exit the directory.\n");
-                result = DIRECTORY_ERROR;
+                fclose(temp_file);
+                temp_file = NULL;
                 break;
             }
         }
+        
+        /* Rewind the file pointer to the beginning for reading */
+        rewind(temp_file);
         break;
     }
     
-    if (temp_file != NULL) {
-        fclose(temp_file);
-    }
     free(parent_dir);
     free(file_name);
     
-    return result;
+    return temp_file;
 }
 
 /*
@@ -485,31 +464,31 @@ int prepare_directory(char *input_file, int *directory_size) {
  * Deserializes and extracts the archived directories.
  * Returns 0 on success or a negative value on failure.
  */
-int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
+int restore_directory(FILE *temp_file, char *output_file, bool force, bool no_preserve_perms) {
     int res = 0;
-    FILE *f = NULL;
     Directory_item item = {0};
     
     while (true) {
-        f = fopen(SERIALIZED_TMP_FILE, "rb");
-        if (f == NULL) {
-            fprintf(stderr, "Failed to open the serialized file.\n");
+        if (temp_file == NULL) {
+            fprintf(stderr, "Invalid temp file.\n");
             res = FILE_READ_ERROR;
             break;
         }
+        
+        /* Rewind to the beginning of the temp file */
+        rewind(temp_file);
         
         if (output_file != NULL) {
             if (mkdir(output_file, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "Failed to create the output directory.\n");
                 res = MKDIR_ERROR;
-                fclose(f);
                 break;
             }
         }
         
         while (true) {
             item = (Directory_item){0};
-            long bytes_read = deserialize_item(&item, f);
+            long bytes_read = deserialize_item(&item, temp_file);
             if (bytes_read < 0) {
                 if (bytes_read == MALLOC_ERROR) {
                     fprintf(stderr, "Failed to allocate memory while reading.\n");
@@ -526,7 +505,7 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
                 }
                 break;
             }
-            if (bytes_read == 0 || feof(f)) break;
+            if (bytes_read == 0 || feof(temp_file)) break;
             
             int ret = extract_directory(output_file, &item, force, no_preserve_perms);
             
@@ -552,8 +531,6 @@ int restore_directory(char *output_file, bool force, bool no_preserve_perms) {
             }
         }
         
-        fclose(f);
-        remove(SERIALIZED_TMP_FILE);
         break;
     }
     

@@ -15,22 +15,25 @@
 
 static int invoke_run_compression(Arguments args) {
     char *data = NULL;
+    char *allocated_data = NULL;
     long data_len = 0;
     long directory_size = 0;
+    bool use_mmap = false;
 
     if (args.directory) {
         int directory_size_int = 0;
-        int prep_res = prepare_directory(args.input_file, &directory_size_int);
-        if (prep_res < 0) {
-            return prep_res;
+        FILE *temp_file = prepare_directory(args.input_file, &directory_size_int);
+        if (temp_file == NULL) {
+            return FILE_WRITE_ERROR;
         }
         directory_size = directory_size_int;
-        int read_res = read_raw(SERIALIZED_TMP_FILE, (const char**)&data);
+        int read_res = read_from_file(temp_file, &allocated_data);
+        fclose(temp_file);
         if (read_res < 0) {
             return read_res;
         }
+        data = allocated_data;
         data_len = read_res;
-        remove(SERIALIZED_TMP_FILE);
     } else {
         int read_res = read_raw(args.input_file, (const char**)&data);
         if (read_res < 0) {
@@ -38,10 +41,15 @@ static int invoke_run_compression(Arguments args) {
         }
         data_len = read_res;
         directory_size = data_len;
+        use_mmap = true;
     }
 
     int result = run_compression(args, data, data_len, directory_size);
-    munmap((void*)data, data_len);
+    if (use_mmap) {
+        munmap((void*)data, data_len);
+    } else {
+        free(allocated_data);
+    }
     return result;
 }
 
@@ -59,16 +67,22 @@ static int invoke_run_decompression(Arguments args) {
     }
 
     if (is_dir) {
-        FILE *f = fopen(SERIALIZED_TMP_FILE, "wb");
-        if (f == NULL || fwrite(raw_data, 1, raw_size, f) != (size_t)raw_size) {
-            fprintf(stderr, "Failed to write the serialized data.\n");
-            if (f != NULL) fclose(f);
+        FILE *temp_file = tmpfile();
+        if (temp_file == NULL) {
+            fprintf(stderr, "Failed to create temporary file.\n");
             free(raw_data);
             free(original_name);
             return FILE_WRITE_ERROR;
         }
-        fclose(f);
-        res = restore_directory(args.output_file, args.force, args.no_preserve_perms);
+        if (fwrite(raw_data, 1, raw_size, temp_file) != (size_t)raw_size) {
+            fprintf(stderr, "Failed to write the serialized data.\n");
+            fclose(temp_file);
+            free(raw_data);
+            free(original_name);
+            return FILE_WRITE_ERROR;
+        }
+        res = restore_directory(temp_file, args.output_file, args.force, args.no_preserve_perms);
+        fclose(temp_file);
         free(raw_data);
     }
 
