@@ -2,6 +2,7 @@
 #define DATA_TYPES_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 /*
  * Magic value used as the identifier stored in the compressed file.
@@ -40,12 +41,12 @@ typedef struct {
     char magic[4];
     bool is_dir;
     char *file_name;
-    long original_size;
+    size_t original_size;
     char *original_file;
     Node *huffman_tree;
-    long tree_size; 
+    size_t tree_size; 
     char *compressed_data;
-    long data_size; // In bits.
+    size_t data_size; // In bits.
 } Compressed_file;
 
 // Holds the error codes for the helper functions.
@@ -76,7 +77,7 @@ typedef struct {
             int perms;
         };
         struct {
-            long file_size;
+            size_t file_size;
             char *file_path;
             char *file_data;
         };
