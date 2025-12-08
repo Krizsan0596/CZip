@@ -183,26 +183,27 @@ int main() {
     printf("  Test 1: prepare_directory with relative path...\n");
     {
         int directory_size = 0;
-        int result = prepare_directory(test_dir, &directory_size);
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed with relative path, code: %d\n", result);
+        FILE *temp_file = prepare_directory(test_dir, &directory_size);
+        if (temp_file == NULL) {
+            fprintf(stderr, "Error: prepare_directory failed with relative path\n");
             return 1;
         }
         if (directory_size <= 0) {
             fprintf(stderr, "Error: prepare_directory returned invalid directory_size: %d\n", directory_size);
+            fclose(temp_file);
             return 1;
         }
         printf("    Relative path test passed. Directory size: %d bytes\n", directory_size);
         
-        // Verify temp file was created
-        struct stat st;
-        if (stat(SERIALIZED_TMP_FILE, &st) != 0) {
-            fprintf(stderr, "Error: Temp file was not created\n");
+        // Verify temp file is valid
+        if (ftell(temp_file) < 0) {
+            fprintf(stderr, "Error: Temp file is not valid\n");
+            fclose(temp_file);
             return 1;
         }
         
         // Cleanup temp file
-        remove(SERIALIZED_TMP_FILE);
+        fclose(temp_file);
     }
     
     // Test 2: prepare_directory with absolute path (includes full round-trip verification)
@@ -229,13 +230,14 @@ int main() {
         }
         
         int directory_size = 0;
-        int result = prepare_directory(abs_path, &directory_size);
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed with absolute path, code: %d\n", result);
+        FILE *temp_file = prepare_directory(abs_path, &directory_size);
+        if (temp_file == NULL) {
+            fprintf(stderr, "Error: prepare_directory failed with absolute path\n");
             return 1;
         }
         if (directory_size <= 0) {
             fprintf(stderr, "Error: prepare_directory returned invalid directory_size for absolute path: %d\n", directory_size);
+            fclose(temp_file);
             return 1;
         }
         printf("    Absolute path test passed. Directory size: %d bytes\n", directory_size);
@@ -244,7 +246,8 @@ int main() {
         remove_directory_recursive(output_dir);
         mkdir(output_dir, 0755);
         
-        result = restore_directory(output_dir, true, false);
+        int result = restore_directory(temp_file, output_dir, true, false);
+        fclose(temp_file);
         if (result != 0) {
             fprintf(stderr, "Error: restore_directory failed, code: %d\n", result);
             return 1;
@@ -272,12 +275,13 @@ int main() {
     printf("  Test 3: prepare_directory with non-existent path...\n");
     {
         int directory_size = 0;
-        int result = prepare_directory("./non_existent_directory_12345", &directory_size);
-        if (result >= 0) {
+        FILE *temp_file = prepare_directory("./non_existent_directory_12345", &directory_size);
+        if (temp_file != NULL) {
             fprintf(stderr, "Error: prepare_directory should fail for non-existent directory\n");
+            fclose(temp_file);
             return 1;
         }
-        printf("    Non-existent path error handling test passed. Error code: %d\n", result);
+        printf("    Non-existent path error handling test passed.\n");
     }
     
     // Test 4: Verify working directory is restored after prepare_directory
@@ -292,15 +296,15 @@ int main() {
         }
         
         int directory_size = 0;
-        int result = prepare_directory(test_dir, &directory_size);
+        FILE *temp_file = prepare_directory(test_dir, &directory_size);
         
         if (getcwd(cwd_after, sizeof(cwd_after)) == NULL) {
             perror("getcwd error");
             return 1;
         }
         
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
+        if (temp_file == NULL) {
+            fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
         
@@ -308,10 +312,11 @@ int main() {
             fprintf(stderr, "Error: Working directory changed after prepare_directory!\n");
             fprintf(stderr, "  Before: %s\n", cwd_before);
             fprintf(stderr, "  After:  %s\n", cwd_after);
+            fclose(temp_file);
             return 1;
         }
         printf("    Working directory preservation test passed.\n");
-        remove(SERIALIZED_TMP_FILE);
+        fclose(temp_file);
     }
     
     // Test 5: restore_directory with NULL output path (restore to current directory)
@@ -338,9 +343,9 @@ int main() {
         }
         
         int directory_size = 0;
-        int result = prepare_directory(abs_path, &directory_size);
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
+        FILE *temp_file = prepare_directory(abs_path, &directory_size);
+        if (temp_file == NULL) {
+            fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
         
@@ -352,7 +357,8 @@ int main() {
         remove_directory_recursive(dir_name);
         
         // Use restore_directory with NULL output
-        result = restore_directory(NULL, true, false);
+        int result = restore_directory(temp_file, NULL, true, false);
+        fclose(temp_file);
         if (result != 0) {
             fprintf(stderr, "Error: restore_directory with NULL output failed, code: %d\n", result);
             return 1;
@@ -395,9 +401,9 @@ int main() {
         }
         
         int directory_size = 0;
-        int result = prepare_directory(abs_path, &directory_size);
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
+        FILE *temp_file = prepare_directory(abs_path, &directory_size);
+        if (temp_file == NULL) {
+            fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
         
@@ -405,21 +411,23 @@ int main() {
         remove_directory_recursive(output_dir);
         
         // First extraction
-        result = restore_directory(output_dir, true, false);
+        int result = restore_directory(temp_file, output_dir, true, false);
+        fclose(temp_file);
         if (result != 0) {
             fprintf(stderr, "Error: first restore_directory failed, code: %d\n", result);
             return 1;
         }
         
         // Prepare again for second extraction
-        result = prepare_directory(abs_path, &directory_size);
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed on second call, code: %d\n", result);
+        temp_file = prepare_directory(abs_path, &directory_size);
+        if (temp_file == NULL) {
+            fprintf(stderr, "Error: prepare_directory failed on second call\n");
             return 1;
         }
         
         // Second extraction with force flag (should overwrite)
-        result = restore_directory(output_dir, true, false);
+        result = restore_directory(temp_file, output_dir, true, false);
+        fclose(temp_file);
         if (result != 0) {
             fprintf(stderr, "Error: second restore_directory with force failed, code: %d\n", result);
             return 1;
@@ -525,9 +533,9 @@ int main() {
         
         // Prepare directory
         int directory_size = 0;
-        int result = prepare_directory(abs_path, &directory_size);
-        if (result < 0) {
-            fprintf(stderr, "Error: prepare_directory failed, code: %d\n", result);
+        FILE *temp_file = prepare_directory(abs_path, &directory_size);
+        if (temp_file == NULL) {
+            fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
         
@@ -535,7 +543,8 @@ int main() {
         remove_directory_recursive(perm_output_dir);
         mkdir(perm_output_dir, 0755);
         
-        result = restore_directory(perm_output_dir, true, false);
+        int result = restore_directory(temp_file, perm_output_dir, true, false);
+        fclose(temp_file);
         if (result != 0) {
             fprintf(stderr, "Error: restore_directory failed, code: %d\n", result);
             return 1;
