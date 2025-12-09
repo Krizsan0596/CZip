@@ -47,10 +47,25 @@ IF (WIN32)
     )
     FetchContent_MakeAvailable(mman)
 
+    # Expose headers for the fetched libraries so MSVC can find dirent.h and mman.h at compile time.
+    set(WIN_EXTRA_INCLUDES
+        ${dirent_SOURCE_DIR}/include
+        ${mman_SOURCE_DIR}/include
+    )
+
+    target_include_directories(${PROJECT_NAME} PRIVATE ${WIN_EXTRA_INCLUDES})
     target_link_libraries(${PROJECT_NAME} PRIVATE dirent mman)
+
+    target_include_directories(file_io_test PRIVATE ${WIN_EXTRA_INCLUDES})
     target_link_libraries(file_io_test mman)
+
+    target_include_directories(compress_test PRIVATE ${WIN_EXTRA_INCLUDES})
     target_link_libraries(compress_test dirent mman)
+
+    target_include_directories(test_compress_decompress PRIVATE ${WIN_EXTRA_INCLUDES})
     target_link_libraries(test_compress_decompress mman)
+
+    target_include_directories(directory_test PRIVATE ${WIN_EXTRA_INCLUDES})
     target_link_libraries(directory_test dirent mman)
 ELSE()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Werror -g)

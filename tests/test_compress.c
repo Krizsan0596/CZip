@@ -2,8 +2,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#ifdef _WIN32
+#include <mman.h>
+#include <sys/types.h>
+#else
 #include <sys/mman.h>
+#endif
+#include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
 #include <dirent.h>
