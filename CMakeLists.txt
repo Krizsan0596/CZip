@@ -51,11 +51,9 @@ IF (WIN32)
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/mman_include/sys)
     file(COPY ${mman_SOURCE_DIR}/mman.h DESTINATION ${CMAKE_BINARY_DIR}/mman_include/sys)
 
-    # Expose headers for the fetched libraries so MSVC can find dirent.h and mman.h at compile time.
-    # Include both mman source dir (for direct mman.h) and build dir (for sys/mman.h)
+    # Expose headers for the fetched libraries so MSVC can find dirent.h and sys/mman.h at compile time.
     set(WIN_EXTRA_INCLUDES
         ${dirent_SOURCE_DIR}/include
-        ${mman_SOURCE_DIR}
         ${CMAKE_BINARY_DIR}/mman_include
     )
 
