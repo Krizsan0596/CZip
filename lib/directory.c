@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <dirent.h>
-#include <sys/mman.h>
 #include <errno.h>
 #include <stdio.h>
 #include <limits.h>
@@ -229,12 +228,12 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
        int ret = mkdir(full_path, item->perms);
        if (ret != 0 && errno != EEXIST) {
            free(full_path);
-           return MKDIR_ERROR;
+           return errno;
        }
        if (no_preserve_perms && errno == EEXIST) {
            if (chmod(full_path, item->perms) != 0) {
                free(full_path);
-               return MKDIR_ERROR;
+               return errno;
            }
        }
     }

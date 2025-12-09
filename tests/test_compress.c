@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
 #include <time.h>
 #include <dirent.h>
 #include "../lib/compatibility.h"

@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
 #include "file.h"
 #include "decompress.h"
 

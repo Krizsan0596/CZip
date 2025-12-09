@@ -3,7 +3,6 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
-#include <sys/mman.h>
 #include "../lib/compatibility.h"
 #include "../lib/file.h"
 #include "../lib/data_types.h"

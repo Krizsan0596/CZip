@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/mman.h>
 #include "../lib/compatibility.h"
 #include "../lib/file.h"
 #include "../lib/compress.h"
