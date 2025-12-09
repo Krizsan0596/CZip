@@ -9,6 +9,7 @@
     #include <sys/types.h>
     #include <sys/stat.h>
     #include <fcntl.h>
+    #include <mman.h>
     
     /* Map POSIX functions to Windows equivalents */
     #define open _open
@@ -52,6 +53,7 @@
     #include <unistd.h>
     #include <fcntl.h>
     #include <sys/stat.h>
+    #include <sys/mman.h>
 #endif
 
 #endif /* COMPATIBILITY_H */

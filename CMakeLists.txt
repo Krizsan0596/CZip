@@ -67,14 +67,10 @@ IF (WIN32)
     add_library(mman_static STATIC ${mman_SOURCE_DIR}/mman.c)
     target_include_directories(mman_static PUBLIC ${mman_SOURCE_DIR})
 
-    # Create sys/ directory structure for mman.h since mman-win32 has it at root
-    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/mman_include/sys)
-    file(COPY ${mman_SOURCE_DIR}/mman.h DESTINATION ${CMAKE_BINARY_DIR}/mman_include/sys)
-
-    # Expose headers for the fetched libraries so MSVC can find dirent.h and sys/mman.h at compile time.
+    # Expose headers for the fetched libraries
     set(WIN_EXTRA_INCLUDES
         ${dirent_SOURCE_DIR}/include
-        ${CMAKE_BINARY_DIR}/mman_include
+        ${mman_SOURCE_DIR}
     )
 
     target_include_directories(czip_core PUBLIC ${WIN_EXTRA_INCLUDES})
