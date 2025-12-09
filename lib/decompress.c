@@ -5,10 +5,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef _WIN32
-#include <mman.h>
-#else
 #include <sys/mman.h>
+#ifdef _WIN32
+#include <sys/types.h>
 #endif
 #include "file.h"
 #include "decompress.h"

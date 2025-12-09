@@ -2,11 +2,9 @@
 #include "data_types.h"
 #include <math.h>
 #include <stdlib.h>
-#ifdef _WIN32
-#include <mman.h>
-#include <sys/types.h>
-#else
 #include <sys/mman.h>
+#ifdef _WIN32
+#include <sys/types.h>
 #endif
 #include <sys/stat.h>
 #include <fcntl.h>
