@@ -7,12 +7,12 @@
 #include <string.h>
 #include <dirent.h>
 #ifdef _WIN32
-#include <stat.h>
 #include <mman.h>
+#include <sys/types.h>
 #else
-#include <sys/stat.h>
 #include <sys/mman.h>
 #endif
+#include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>

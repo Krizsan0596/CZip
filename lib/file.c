@@ -4,11 +4,11 @@
 #include <stdlib.h>
 #ifdef _WIN32
 #include <mman.h>
-#include <stat.h>
+#include <sys/types.h>
 #else
-#include <sys/stat.h>
 #include <sys/mman.h>
 #endif
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
