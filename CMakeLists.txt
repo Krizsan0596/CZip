@@ -34,6 +34,7 @@ add_test(NAME DirectoryTest COMMAND directory_test)
 
 IF (WIN32)
     target_compile_options(${PROJECT_NAME} PRIVATE /W0)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     include(FetchContent)
     FetchContent_Declare(
         dirent

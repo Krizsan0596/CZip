@@ -1,14 +1,9 @@
 #include "file.h"
 #include "data_types.h"
+#include "compatibility.h"
 #include <math.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#ifdef _WIN32
-#include <sys/types.h>
-#endif
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>

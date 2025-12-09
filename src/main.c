@@ -4,11 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/mman.h>
-#ifdef _WIN32
-#include <sys/types.h>
-#endif
-#include <sys/stat.h>
-#include <unistd.h>
+#include "../lib/compatibility.h"
 #include "../lib/file.h"
 #include "../lib/compress.h"
 #include "../lib/decompress.h"

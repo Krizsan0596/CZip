@@ -4,10 +4,7 @@
 #include <assert.h>
 #include <math.h>
 #include <sys/mman.h>
-#ifdef _WIN32
-#include <sys/types.h>
-#endif
-#include <sys/stat.h>
+#include "../lib/compatibility.h"
 #include "../lib/file.h"
 #include "../lib/data_types.h"
 #include "../lib/debugmalloc.h"

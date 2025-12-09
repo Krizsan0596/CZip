@@ -1,14 +1,12 @@
 #include "debugmalloc.h"
 #include "data_types.h"
+#include "compatibility.h"
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#ifdef _WIN32
-#include <sys/types.h>
-#endif
 #include "file.h"
 #include "decompress.h"
 

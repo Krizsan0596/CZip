@@ -3,13 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#ifdef _WIN32
-#include <sys/types.h>
-#endif
-#include <sys/stat.h>
-#include <unistd.h>
 #include <time.h>
 #include <dirent.h>
+#include "../lib/compatibility.h"
 #include "../lib/file.h"
 #include "../lib/compress.h"
 #include "../lib/data_types.h"

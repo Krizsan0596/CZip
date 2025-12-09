@@ -1,17 +1,13 @@
 #include "directory.h"
 #include "data_types.h"
 #include "file.h"
+#include "compatibility.h"
 #include "debugmalloc.h"
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/mman.h>
-#ifdef _WIN32
-#include <sys/types.h>
-#endif
-#include <sys/stat.h>
-#include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
 #include <limits.h>
