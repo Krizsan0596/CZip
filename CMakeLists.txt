@@ -15,7 +15,7 @@ add_executable(${PROJECT_NAME}
 )
 
 IF (WIN32)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W0)
     include(FetchContent)
     FetchContent_Declare(
         dirent

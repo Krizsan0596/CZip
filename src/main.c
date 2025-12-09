@@ -3,8 +3,13 @@
 #include <stdbool.h>
 #include <string.h>
 #include <errno.h>
+#ifdef _WIN32
+#include <stat.h>
+#include <mman.h>
+#else
 #include <sys/stat.h>
 #include <sys/mman.h>
+#endif
 #include <unistd.h>
 #include "../lib/file.h"
 #include "../lib/compress.h"

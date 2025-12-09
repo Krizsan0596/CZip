@@ -2,8 +2,13 @@
 #include "data_types.h"
 #include <math.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <mman.h>
+#include <stat.h>
+#else
 #include <sys/stat.h>
 #include <sys/mman.h>
+#endif
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
