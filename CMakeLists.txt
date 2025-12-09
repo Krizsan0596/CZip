@@ -47,10 +47,14 @@ IF (WIN32)
     )
     FetchContent_MakeAvailable(mman)
 
+    # Create sys/ directory structure for mman.h since mman-win32 has it at root
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/mman_include/sys)
+    file(COPY ${mman_SOURCE_DIR}/mman.h DESTINATION ${CMAKE_BINARY_DIR}/mman_include/sys)
+
     # Expose headers for the fetched libraries so MSVC can find dirent.h and mman.h at compile time.
     set(WIN_EXTRA_INCLUDES
         ${dirent_SOURCE_DIR}/include
-        ${mman_SOURCE_DIR}/include
+        ${CMAKE_BINARY_DIR}/mman_include
     )
 
     target_include_directories(${PROJECT_NAME} PRIVATE ${WIN_EXTRA_INCLUDES})
