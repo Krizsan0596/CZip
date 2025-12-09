@@ -14,9 +14,27 @@ add_executable(${PROJECT_NAME}
     lib/directory.c
 )
 
-target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Werror -g)
+IF (WIN32)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
+    include(FetchContent)
+    FetchContent_Declare(
+        dirent
+        URL https://github.com/tronkko/dirent/archive/refs/tags/1.26.zip
+    )
+    FetchContent_MakeAvailable(dirent)
+
+    FetchContent_Declare(
+        mman
+        URL https://github.com/alitrack/mman-win32/archive/refs/heads/master.zip
+    )
+    FetchContent_MakeAvailable(mman)
+
+    target_link_libraries(${PROJECT_NAME})
+ELSE()
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Werror -g)
+    target_link_libraries(${PROJECT_NAME} PRIVATE m)
+ENDIF()
 target_include_directories(${PROJECT_NAME} PRIVATE lib)
-target_link_libraries(${PROJECT_NAME} PRIVATE m)
 
 add_executable(file_io_test tests/test_file_io.c lib/file.c lib/compress.c lib/directory.c)
 target_include_directories(file_io_test PRIVATE lib)
