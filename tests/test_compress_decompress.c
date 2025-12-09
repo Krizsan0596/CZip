@@ -90,6 +90,118 @@ static int invoke_run_decompression(Arguments args) {
     return res;
 }
 
+static int test_run_compression_respects_no_overwrite_prompt(void) {
+    const char *input_file = "/tmp/test_no_overwrite_input.txt";
+    const char *output_file = "/tmp/test_no_overwrite_output.huff";
+    const char *input_content = "Content that will not be written";
+    const char *existing_output = "Existing output content";
+
+    unlink(input_file);
+    unlink(output_file);
+
+    FILE *input = fopen(input_file, "w");
+    if (input == NULL) {
+        fprintf(stderr, "Failed to create input file\n");
+        return 1;
+    }
+    fprintf(input, "%s", input_content);
+    fclose(input);
+
+    FILE *preexisting = fopen(output_file, "w");
+    if (preexisting == NULL) {
+        fprintf(stderr, "Failed to create output file\n");
+        unlink(input_file);
+        return 1;
+    }
+    fprintf(preexisting, "%s", existing_output);
+    fclose(preexisting);
+
+    struct stat original_stat;
+    if (stat(output_file, &original_stat) != 0) {
+        fprintf(stderr, "Failed to stat output file\n");
+        unlink(input_file);
+        unlink(output_file);
+        return 1;
+    }
+
+    const char *response_path = "/tmp/test_no_overwrite_response.txt";
+    FILE *response = fopen(response_path, "w");
+    if (response == NULL) {
+        fprintf(stderr, "Failed to create response file\n");
+        unlink(input_file);
+        unlink(output_file);
+        return 1;
+    }
+    fputs("n\n", response);
+    fclose(response);
+
+    int stdin_backup = dup(STDIN_FILENO);
+    FILE *response_read = fopen(response_path, "r");
+    if (stdin_backup < 0 || response_read == NULL || dup2(fileno(response_read), STDIN_FILENO) != STDIN_FILENO) {
+        fprintf(stderr, "Failed to prepare stdin redirection\n");
+        if (stdin_backup >= 0) close(stdin_backup);
+        if (response_read != NULL) fclose(response_read);
+        unlink(input_file);
+        unlink(output_file);
+        unlink(response_path);
+        return 1;
+    }
+
+    Arguments args = {0};
+    args.compress_mode = true;
+    args.extract_mode = false;
+    args.force = false;
+    args.directory = false;
+    args.input_file = (char *)input_file;
+    args.output_file = (char *)output_file;
+
+    int result = invoke_run_compression(args);
+
+    if (dup2(stdin_backup, STDIN_FILENO) != STDIN_FILENO) {
+        fprintf(stderr, "Failed to restore stdin\n");
+    }
+    close(stdin_backup);
+    fclose(response_read);
+    unlink(response_path);
+
+    if (result != ECANCELED) {
+        fprintf(stderr, "Expected ECANCELED, got %d\n", result);
+        unlink(input_file);
+        unlink(output_file);
+        return 1;
+    }
+
+    struct stat new_stat;
+    if (stat(output_file, &new_stat) != 0) {
+        fprintf(stderr, "Failed to stat output file after compression\n");
+        unlink(input_file);
+        unlink(output_file);
+        return 1;
+    }
+
+    if (original_stat.st_mtime != new_stat.st_mtime || original_stat.st_size != new_stat.st_size) {
+        fprintf(stderr, "Output file was modified despite cancellation\n");
+        unlink(input_file);
+        unlink(output_file);
+        return 1;
+    }
+
+    const char *output_buffer = NULL;
+    int read_size = read_raw((char *)output_file, &output_buffer);
+    if (read_size < 0 || read_size != (int)strlen(existing_output) ||
+        memcmp(output_buffer, existing_output, strlen(existing_output)) != 0) {
+        fprintf(stderr, "Output file contents changed despite cancellation\n");
+        if (output_buffer != NULL) munmap((void *)output_buffer, read_size);
+        unlink(input_file);
+        unlink(output_file);
+        return 1;
+    }
+    munmap((void *)output_buffer, read_size);
+
+    unlink(input_file);
+    unlink(output_file);
+    return 0;
+}
 int main() {
     char *data = "hello world";
     long data_len = strlen(data);
@@ -181,6 +293,11 @@ int main() {
     free(compressed_file->compressed_data);
     free(compressed_file);
     free(raw_data);
+
+    printf("Testing overwrite cancellation handling...\n");
+    if (test_run_compression_respects_no_overwrite_prompt() != 0) {
+        return 1;
+    }
 
     // ==========================================
     // Test run_decompression function
