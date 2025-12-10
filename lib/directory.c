@@ -228,12 +228,12 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
        int ret = mkdir(full_path, item->perms);
        if (ret != 0 && errno != EEXIST) {
            free(full_path);
-           return errno;
+           return MKDIR_ERROR;
        }
        if (no_preserve_perms && errno == EEXIST) {
            if (chmod(full_path, item->perms) != 0) {
                free(full_path);
-               return errno;
+               return MKDIR_ERROR;
            }
        }
     }
@@ -360,6 +360,12 @@ long deserialize_item(Directory_item *item, FILE *f) {
 FILE* prepare_directory(char *input_file, int *directory_size) {
     char current_path[PATH_MAX];
     char *sep = strrchr(input_file, '/');
+#ifdef _WIN32
+    char *sep_win = strrchr(input_file, '\\');
+    if (sep == NULL || (sep_win != NULL && sep_win > sep)) {
+        sep = sep_win;
+    }
+#endif
     char *parent_dir = NULL;
     char *file_name = NULL;
     int archive_size = 0;
