@@ -37,3 +37,8 @@ add_executable(directory_test tests/test_directory.c lib/directory.c lib/file.c 
 target_include_directories(directory_test PRIVATE lib)
 target_link_libraries(directory_test m)
 add_test(NAME DirectoryTest COMMAND directory_test)
+
+add_executable(cli_test tests/test_cli.c lib/file.c lib/compress.c lib/decompress.c lib/directory.c)
+target_include_directories(cli_test PRIVATE lib)
+target_link_libraries(cli_test m)
+add_test(NAME CLITest COMMAND cli_test)
