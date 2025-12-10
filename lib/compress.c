@@ -385,12 +385,13 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         else {
             size_t original_size = (size_t)data_len;
             size_t compressed_size = write_res;
+            long divisor = args.directory ? directory_size : data_len;
             printf("Compression complete.\n"
                     "Original size:    %zu%s\n"
                     "Compressed size:  %zu%s\n"
                     "Compression ratio: %.2f%%\n", original_size, get_unit(&original_size),
                                                  compressed_size, get_unit(&compressed_size),
-                                                 (double)write_res/(args.directory ? directory_size : data_len) * 100);
+                                                 divisor > 0 ? (double)write_res/divisor * 100 : 0.0);
         }
         break;
     }
