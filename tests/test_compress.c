@@ -11,6 +11,32 @@
 #include "../lib/debugmalloc.h"
 #include "../lib/directory.h"
 
+// Helper function to get cross-platform temporary directory
+static const char* get_temp_dir(void) {
+#ifdef _WIN32
+    const char *temp = getenv("TEMP");
+    if (temp == NULL) {
+        temp = getenv("TMP");
+    }
+    if (temp == NULL) {
+        temp = ".";  // Fallback to current directory
+    }
+    return temp;
+#else
+    return "/tmp";
+#endif
+}
+
+// Helper function to build a temporary file path
+static void build_temp_path(char *buffer, size_t size, const char *filename) {
+    const char *temp_dir = get_temp_dir();
+#ifdef _WIN32
+    snprintf(buffer, size, "%s\\%s", temp_dir, filename);
+#else
+    snprintf(buffer, size, "%s/%s", temp_dir, filename);
+#endif
+}
+
 // Helper function to recursively delete a directory
 static int remove_directory_recursive(const char *path) {
     DIR *dir = opendir(path);
@@ -177,8 +203,10 @@ static void test_compress_zero_length(void) {
 
 static void test_run_compression_basic_file(void) {
     // Create a test file
-    const char *test_file = "/tmp/test_run_compression_input.txt";
-    const char *output_file = "/tmp/test_run_compression_output.huff";
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "test_run_compression_input.txt");
+    build_temp_path(output_file, sizeof(output_file), "test_run_compression_output.huff");
     const char *test_content = "AAAABBBBCCCC";
     
     FILE *f = fopen(test_file, "w");
@@ -212,8 +240,10 @@ static void test_run_compression_basic_file(void) {
 
 static void test_run_compression_auto_output_filename(void) {
     // Create a test file
-    const char *test_file = "/tmp/test_auto_output.txt";
-    const char *expected_output = "/tmp/test_auto_output.huff";
+    char test_file[512];
+    char expected_output[512];
+    build_temp_path(test_file, sizeof(test_file), "test_auto_output.txt");
+    build_temp_path(expected_output, sizeof(expected_output), "test_auto_output.huff");
     const char *test_content = "Hello World!";
     
     FILE *f = fopen(test_file, "w");
@@ -229,7 +259,7 @@ static void test_run_compression_auto_output_filename(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = false;
-    args.input_file = (char *)test_file;
+    args.input_file = test_file;
     args.output_file = NULL;  // Should auto-generate
     
     int result = invoke_run_compression(args);
@@ -246,13 +276,18 @@ static void test_run_compression_auto_output_filename(void) {
 }
 
 static void test_run_compression_nonexistent_file(void) {
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "nonexistent_file_12345.txt");
+    build_temp_path(output_file, sizeof(output_file), "test_output.huff");
+    
     Arguments args = {0};
     args.compress_mode = true;
     args.extract_mode = false;
     args.force = false;
     args.directory = false;
-    args.input_file = "/tmp/nonexistent_file_12345.txt";
-    args.output_file = "/tmp/test_output.huff";
+    args.input_file = test_file;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     // Should return an error for non-existent file
@@ -261,15 +296,24 @@ static void test_run_compression_nonexistent_file(void) {
 
 static void test_run_compression_directory(void) {
     // Create test directory structure
-    const char *test_dir = "/tmp/test_run_comp_dir";
-    const char *output_file = "/tmp/test_run_comp_dir.huff";
-    char subdir_path[256];
-    char file1_path[256];
-    char file2_path[256];
+    char test_dir[512];
+    char output_file[512];
+    build_temp_path(test_dir, sizeof(test_dir), "test_run_comp_dir");
+    build_temp_path(output_file, sizeof(output_file), "test_run_comp_dir.huff");
     
+    char subdir_path[512];
+    char file1_path[512];
+    char file2_path[512];
+    
+#ifdef _WIN32
+    snprintf(subdir_path, sizeof(subdir_path), "%s\\subdir", test_dir);
+    snprintf(file1_path, sizeof(file1_path), "%s\\file1.txt", test_dir);
+    snprintf(file2_path, sizeof(file2_path), "%s\\subdir\\file2.txt", test_dir);
+#else
     snprintf(subdir_path, sizeof(subdir_path), "%s/subdir", test_dir);
     snprintf(file1_path, sizeof(file1_path), "%s/file1.txt", test_dir);
     snprintf(file2_path, sizeof(file2_path), "%s/subdir/file2.txt", test_dir);
+#endif
     
     // Remove any existing directory (follows existing test patterns)
     remove_directory_recursive(test_dir);
@@ -307,8 +351,8 @@ static void test_run_compression_directory(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = true;
-    args.input_file = (char *)test_dir;
-    args.output_file = (char *)output_file;
+    args.input_file = test_dir;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
@@ -325,8 +369,10 @@ static void test_run_compression_directory(void) {
 
 static void test_run_compression_force_overwrite(void) {
     // Create test file
-    const char *test_file = "/tmp/test_force_input.txt";
-    const char *output_file = "/tmp/test_force_output.huff";
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "test_force_input.txt");
+    build_temp_path(output_file, sizeof(output_file), "test_force_output.huff");
     const char *test_content = "Test content for force overwrite";
     
     // Remove any existing files first
@@ -358,8 +404,8 @@ static void test_run_compression_force_overwrite(void) {
     args.extract_mode = false;
     args.force = true;  // Use force to avoid interactive prompt
     args.directory = false;
-    args.input_file = (char *)test_file;
-    args.output_file = (char *)output_file;
+    args.input_file = test_file;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
@@ -377,8 +423,10 @@ static void test_run_compression_force_overwrite(void) {
 
 static void test_run_compression_empty_file(void) {
     // Create an empty test file
-    const char *test_file = "/tmp/test_empty_file.txt";
-    const char *output_file = "/tmp/test_empty_output.huff";
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "test_empty_file.txt");
+    build_temp_path(output_file, sizeof(output_file), "test_empty_output.huff");
     
     FILE *f = fopen(test_file, "w");
     assert(f != NULL);
@@ -391,8 +439,8 @@ static void test_run_compression_empty_file(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = false;
-    args.input_file = (char *)test_file;
-    args.output_file = (char *)output_file;
+    args.input_file = test_file;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     // Empty file should return EMPTY_FILE error
@@ -503,8 +551,10 @@ static void test_compress_binary_data(void) {
 }
 
 static void test_run_compression_moderately_large_file(void) {
-    const char *test_file = "/tmp/test_large_file.txt";
-    const char *output_file = "/tmp/test_large_output.huff";
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "test_large_file.txt");
+    build_temp_path(output_file, sizeof(output_file), "test_large_output.huff");
     
     // Increase debugmalloc limits for this test
     debugmalloc_max_block_size(10 * 1024 * 1024);  // 10MB
@@ -524,8 +574,8 @@ static void test_run_compression_moderately_large_file(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = false;
-    args.input_file = (char *)test_file;
-    args.output_file = (char *)output_file;
+    args.input_file = test_file;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
@@ -539,8 +589,10 @@ static void test_run_compression_moderately_large_file(void) {
 }
 
 static void test_run_compression_special_chars_in_filename(void) {
-    const char *test_file = "/tmp/test-file_with.special$chars.txt";
-    const char *output_file = "/tmp/test-output_with.special$chars.huff";
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "test-file_with.special$chars.txt");
+    build_temp_path(output_file, sizeof(output_file), "test-output_with.special$chars.huff");
     const char *test_content = "Test content with special filename";
     
     FILE *f = fopen(test_file, "w");
@@ -555,8 +607,8 @@ static void test_run_compression_special_chars_in_filename(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = false;
-    args.input_file = (char *)test_file;
-    args.output_file = (char *)output_file;
+    args.input_file = test_file;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
@@ -569,8 +621,10 @@ static void test_run_compression_special_chars_in_filename(void) {
 }
 
 static void test_run_compression_readonly_input(void) {
-    const char *test_file = "/tmp/test_readonly_input.txt";
-    const char *output_file = "/tmp/test_readonly_output.huff";
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "test_readonly_input.txt");
+    build_temp_path(output_file, sizeof(output_file), "test_readonly_output.huff");
     const char *test_content = "Read-only test content";
     
     FILE *f = fopen(test_file, "w");
@@ -586,8 +640,8 @@ static void test_run_compression_readonly_input(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = false;
-    args.input_file = (char *)test_file;
-    args.output_file = (char *)output_file;
+    args.input_file = test_file;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
@@ -601,8 +655,10 @@ static void test_run_compression_readonly_input(void) {
 }
 
 static void test_run_compression_empty_directory(void) {
-    const char *test_dir = "/tmp/test_empty_dir";
-    const char *output_file = "/tmp/test_empty_dir.huff";
+    char test_dir[512];
+    char output_file[512];
+    build_temp_path(test_dir, sizeof(test_dir), "test_empty_dir");
+    build_temp_path(output_file, sizeof(output_file), "test_empty_dir.huff");
     
     remove_directory_recursive(test_dir);
     unlink(output_file);
@@ -614,8 +670,8 @@ static void test_run_compression_empty_directory(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = true;
-    args.input_file = (char *)test_dir;
-    args.output_file = (char *)output_file;
+    args.input_file = test_dir;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
@@ -628,17 +684,27 @@ static void test_run_compression_empty_directory(void) {
 }
 
 static void test_run_compression_nested_empty_directories(void) {
-    const char *test_dir = "/tmp/test_nested_empty_dir";
-    const char *output_file = "/tmp/test_nested_empty_dir.huff";
-    char subdir1[256], subdir2[256], subdir3[256];
+    char test_dir[512];
+    char output_file[512];
+    build_temp_path(test_dir, sizeof(test_dir), "test_nested_empty_dir");
+    build_temp_path(output_file, sizeof(output_file), "test_nested_empty_dir.huff");
+    
+    char subdir1[512], subdir2[512], subdir3[512];
     
     remove_directory_recursive(test_dir);
     unlink(output_file);
     
     mkdir(test_dir, 0755);
+    
+#ifdef _WIN32
+    snprintf(subdir1, sizeof(subdir1), "%s\\level1", test_dir);
+    snprintf(subdir2, sizeof(subdir2), "%s\\level1\\level2", test_dir);
+    snprintf(subdir3, sizeof(subdir3), "%s\\level1\\level2\\level3", test_dir);
+#else
     snprintf(subdir1, sizeof(subdir1), "%s/level1", test_dir);
     snprintf(subdir2, sizeof(subdir2), "%s/level1/level2", test_dir);
     snprintf(subdir3, sizeof(subdir3), "%s/level1/level2/level3", test_dir);
+#endif
     
     mkdir(subdir1, 0755);
     mkdir(subdir2, 0755);
@@ -649,8 +715,8 @@ static void test_run_compression_nested_empty_directories(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = true;
-    args.input_file = (char *)test_dir;
-    args.output_file = (char *)output_file;
+    args.input_file = test_dir;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
@@ -663,8 +729,10 @@ static void test_run_compression_nested_empty_directories(void) {
 }
 
 static void test_run_compression_single_byte_file(void) {
-    const char *test_file = "/tmp/test_single_byte.txt";
-    const char *output_file = "/tmp/test_single_byte_output.huff";
+    char test_file[512];
+    char output_file[512];
+    build_temp_path(test_file, sizeof(test_file), "test_single_byte.txt");
+    build_temp_path(output_file, sizeof(output_file), "test_single_byte_output.huff");
     
     FILE *f = fopen(test_file, "w");
     assert(f != NULL);
@@ -678,8 +746,8 @@ static void test_run_compression_single_byte_file(void) {
     args.extract_mode = false;
     args.force = false;
     args.directory = false;
-    args.input_file = (char *)test_file;
-    args.output_file = (char *)output_file;
+    args.input_file = test_file;
+    args.output_file = output_file;
     
     int result = invoke_run_compression(args);
     assert(result == 0);
