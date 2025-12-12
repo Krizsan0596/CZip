@@ -273,7 +273,7 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         output_generated = true;
         args.output_file = generate_output_file(args.input_file);
         if (args.output_file == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             return ENOMEM;
         }
     }
@@ -291,7 +291,7 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         // Count the frequency of each byte in the input data.
         frequencies = calloc(256, sizeof(long));
         if (frequencies == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
@@ -305,14 +305,16 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         }
 
         if (leaf_count == 0) {
-            fprintf(stderr, "The file (%s) is empty.\n", args.input_file);
+            fputs("The file (", stderr);
+            fputs(args.input_file, stderr);
+            fputs(") is empty.\n", stderr);
             res = SUCCESS;
             break;
         }
 
         nodes = malloc((2 * leaf_count - 1) * sizeof(Node));
         if (nodes == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
@@ -334,27 +336,27 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         if (root_node != NULL) {
             tree_size = (root_node - nodes) + 1;
         } else {
-            fprintf(stderr, "Failed to build the Huffman tree.\n");
+            fputs("Failed to build the Huffman tree.\n", stderr);
             res = TREE_ERROR;
             break;
         }
         cache = calloc(256, sizeof(char *));
         if (cache == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
 
         compressed_file = malloc(sizeof(Compressed_file));
         if (compressed_file == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
         // Compress the read data into the compressed_file structure.
         int compress_res = compress(data, data_len, nodes, root_node, cache, compressed_file);
         if (compress_res != 0) {
-            fprintf(stderr, "Failed to compress.\n");
+            fputs("Failed to compress.\n", stderr);
             res = compress_res;
             break;
         }
@@ -369,16 +371,18 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         write_res = write_compressed(compressed_file, args.force);
         if (write_res < 0) {
             if (write_res == NO_OVERWRITE) {
-                fprintf(stderr, "The file was not overwritten; compression was not performed.\n");
+                fputs("The file was not overwritten; compression was not performed.\n", stderr);
                 write_res = ECANCELED;
             } else if (write_res == MALLOC_ERROR) {
-                fprintf(stderr, "Failed to allocate memory.\n");
+                fputs("Failed to allocate memory.\n", stderr);
                 write_res = ENOMEM;
             } else if (write_res == SCANF_FAILED) {
-                fprintf(stderr, "Failed to read the response.\n");
+                fputs("Failed to read the response.\n", stderr);
                 write_res = EIO;
             } else {
-                fprintf(stderr, "Failed to write the output file (%s).\n", compressed_file->file_name);
+                fputs("Failed to write the output file (", stderr);
+                fputs(compressed_file->file_name, stderr);
+                fputs(").\n", stderr);
                 write_res = EIO;
             }
         }

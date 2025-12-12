@@ -375,7 +375,7 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
     
     while (true) {
         if (getcwd(current_path, sizeof(current_path)) == NULL) {
-            fprintf(stderr, "Failed to store the current path.\n");
+            fputs("Failed to store the current path.\n", stderr);
             break;
         }
         
@@ -401,7 +401,7 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
                 break;
             }
             if (chdir(parent_dir) != 0) {
-                fprintf(stderr, "Failed to enter the directory.\n");
+                fputs("Failed to enter the directory.\n", stderr);
                 break;
             }
         }
@@ -409,10 +409,10 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
         /* Create temporary file using tmpfile() */
         temp_file = tmpfile();
         if (temp_file == NULL) {
-            fprintf(stderr, "Failed to create the temp file.\n");
+            fputs("Failed to create the temp file.\n", stderr);
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    fprintf(stderr, "Failed to exit the directory.\n");
+                    fputs("Failed to exit the directory.\n", stderr);
                 }
             }
             break;
@@ -422,18 +422,18 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
         
         if (dir_size < 0) {
             if (dir_size == MALLOC_ERROR) {
-                fprintf(stderr, "Failed to allocate memory while archiving the directory.\n");
+                fputs("Failed to allocate memory while archiving the directory.\n", stderr);
             } else if (dir_size == DIRECTORY_OPEN_ERROR) {
-                fprintf(stderr, "Failed to open the directory.\n");
+                fputs("Failed to open the directory.\n", stderr);
             } else if (dir_size == FILE_READ_ERROR) {
-                fprintf(stderr, "Failed to read a file from the directory.\n");
+                fputs("Failed to read a file from the directory.\n", stderr);
             } else {
-                fprintf(stderr, "Failed to archive the directory.\n");
+                fputs("Failed to archive the directory.\n", stderr);
             }
             /* Return to the original directory even when an error occurs. */
             if (sep != NULL) {
                 if (chdir(current_path) != 0) {
-                    fprintf(stderr, "Failed to exit the directory.\n");
+                    fputs("Failed to exit the directory.\n", stderr);
                 }
             }
             fclose(temp_file);
@@ -446,7 +446,7 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
         /* Return to the original directory. */
         if (sep != NULL) {
             if (chdir(current_path) != 0) {
-                fprintf(stderr, "Failed to exit the directory.\n");
+                fputs("Failed to exit the directory.\n", stderr);
                 fclose(temp_file);
                 temp_file = NULL;
                 break;
@@ -475,7 +475,7 @@ int restore_directory(FILE *temp_file, char *output_file, bool force, bool no_pr
     
     while (true) {
         if (temp_file == NULL) {
-            fprintf(stderr, "Invalid temp file.\n");
+            fputs("Invalid temp file.\n", stderr);
             res = FILE_READ_ERROR;
             break;
         }
@@ -485,7 +485,7 @@ int restore_directory(FILE *temp_file, char *output_file, bool force, bool no_pr
         
         if (output_file != NULL) {
             if (mkdir(output_file, 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "Failed to create the output directory.\n");
+                fputs("Failed to create the output directory.\n", stderr);
                 res = MKDIR_ERROR;
                 break;
             }
@@ -496,9 +496,9 @@ int restore_directory(FILE *temp_file, char *output_file, bool force, bool no_pr
             long bytes_read = deserialize_item(&item, temp_file);
             if (bytes_read < 0) {
                 if (bytes_read == MALLOC_ERROR) {
-                    fprintf(stderr, "Failed to allocate memory while reading.\n");
+                    fputs("Failed to allocate memory while reading.\n", stderr);
                 } else {
-                    fprintf(stderr, "Failed to read the compressed directory.\n");
+                    fputs("Failed to read the compressed directory.\n", stderr);
                 }
                 res = bytes_read;
                 // Free any memory allocated in item before breaking
@@ -523,13 +523,13 @@ int restore_directory(FILE *temp_file, char *output_file, bool force, bool no_pr
             
             if (ret != 0) {
                 if (ret == MKDIR_ERROR) {
-                    fprintf(stderr, "Failed to create a directory during extraction.\n");
+                    fputs("Failed to create a directory during extraction.\n", stderr);
                 } else if (ret == FILE_WRITE_ERROR) {
-                    fprintf(stderr, "Failed to write a file during extraction.\n");
+                    fputs("Failed to write a file during extraction.\n", stderr);
                 } else if (ret == MALLOC_ERROR) {
-                    fprintf(stderr, "Failed to allocate memory.\n");
+                    fputs("Failed to allocate memory.\n", stderr);
                 } else {
-                    fprintf(stderr, "Failed to extract the directory.\n");
+                    fputs("Failed to extract the directory.\n", stderr);
                 }
                 res = ret;
                 break;
