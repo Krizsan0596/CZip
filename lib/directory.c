@@ -245,7 +245,8 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
                 return FILE_WRITE_ERROR;
             }
             fclose(f);
-        } else {
+        } else if (item->file_size > 0) {
+            if (item->file_data == NULL) return FILE_READ_ERROR;
             char *mmap_ptr = NULL;
             int ret = write_raw(full_path, &mmap_ptr, item->file_size, force);
             if (ret < 0) {
@@ -259,7 +260,7 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
                 return FILE_WRITE_ERROR;
             }
             munmap(mmap_ptr, item->file_size);
-        }
+        } else return FILE_READ_ERROR;
     }
     free(full_path);
     return SUCCESS;
