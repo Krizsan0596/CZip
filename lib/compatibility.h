@@ -47,6 +47,12 @@
     /* File permission macros */
     #define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
     #define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+    static inline void convert_path(char *path) {
+        while (*path != '\0') {
+            if (*path == '\\') *path = '/';
+            path++;
+        }
+    }
     
 #else
     /* POSIX/Unix/Linux headers */
@@ -54,6 +60,9 @@
     #include <fcntl.h>
     #include <sys/stat.h>
     #include <sys/mman.h>
+    static inline void convert_path(char *path) {
+        (void)path;
+    }
 #endif
 
 #endif /* COMPATIBILITY_H */

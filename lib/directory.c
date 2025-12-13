@@ -181,6 +181,7 @@ long serialize_item(Directory_item *item, FILE *f) {
         }
         data_size += sizeof(int);
         
+        convert_path(item->dir_path);
         size_t path_len = strlen(item->dir_path) + 1;
         if (fwrite(item->dir_path, sizeof(char), path_len, f) != path_len) {
             return FILE_WRITE_ERROR;
@@ -193,6 +194,7 @@ long serialize_item(Directory_item *item, FILE *f) {
         }
         data_size += sizeof(size_t);
         
+        convert_path(item->file_path);
         size_t path_len = strlen(item->file_path) + 1;
         if (fwrite(item->file_path, sizeof(char), path_len, f) != path_len) {
             return FILE_WRITE_ERROR;
