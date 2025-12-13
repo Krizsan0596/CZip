@@ -27,8 +27,8 @@ jobs:
 
     - name: Check formatting
       run: |
-        find src lib tests -name '*.c' -o -name '*.h' \
-        | xargs clang-format -style="{BasedOnStyle: LLVM, IndentWidth: 4}" --dry-run --Werror
+        find src lib tests \( -name '*.c' -o -name '*.h' \) \
+        | xargs clang-format -style=file:.github/.clang-format --dry-run --Werror
 
   tidy:
     name: clang-tidy
