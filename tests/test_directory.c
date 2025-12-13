@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <dirent.h>
-#include <unistd.h>
 #include <assert.h>
+#include "../lib/compatibility.h"
 #include "../lib/directory.h"
 #include "../lib/data_types.h"
 #include "../lib/debugmalloc.h"
@@ -45,6 +43,19 @@ static int remove_directory_recursive(const char *path) {
     closedir(dir);
     int ret = rmdir(path);
     return (result != 0) ? result : ret;
+}
+
+// Helper function to extract directory name from path (cross-platform)
+// Handles both forward slash (/) and backslash (\) separators
+static const char* get_directory_name(const char *path) {
+    const char *sep = strrchr(path, '/');
+#ifdef _WIN32
+    const char *sep_win = strrchr(path, '\\');
+    if (sep == NULL || (sep_win != NULL && sep_win > sep)) {
+        sep = sep_win;
+    }
+#endif
+    return (sep != NULL) ? sep + 1 : path;
 }
 
 // Function to recursively compare two directories
@@ -247,9 +258,8 @@ int main() {
         }
         
         // Build path to compare - the extracted dir should be output_dir/<dirname>
-        // Extract directory name from test_dir (last component after last '/')
-        char *dirname = strrchr(test_dir, '/');
-        dirname = (dirname != NULL) ? dirname + 1 : test_dir;
+        // Extract directory name from test_dir
+        const char *dirname = get_directory_name(test_dir);
         char extracted_path[1024];
         snprintf(extracted_path, sizeof(extracted_path), "%s/%s", output_dir, dirname);
         
@@ -343,8 +353,7 @@ int main() {
         }
         
         // Extract directory name
-        char *dir_name = strrchr(abs_path, '/');
-        dir_name = (dir_name != NULL) ? dir_name + 1 : abs_path;
+        const char *dir_name = get_directory_name(abs_path);
         
         // Clean any existing directory with same name in current directory
         remove_directory_recursive(dir_name);
@@ -544,8 +553,7 @@ int main() {
         }
         
         // Extract directory name
-        char *dir_name = strrchr(abs_path, '/');
-        dir_name = (dir_name != NULL) ? dir_name + 1 : abs_path;
+        const char *dir_name = get_directory_name(abs_path);
         
         // Verify extracted directory permissions using stat()
         struct stat ext_st_700, ext_st_750, ext_st_755;
