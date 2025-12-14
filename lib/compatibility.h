@@ -1,7 +1,22 @@
 #ifndef COMPATIBILITY_H
 #define COMPATIBILITY_H
 
+
 #ifdef _WIN32
+    #define PROGRAM_USAGE_TEXT \
+        "Huffman encoder\n" \
+        "Usage: %s -c|-x [-o OUTPUT_FILE] INPUT_FILE\n" \
+        "\n" \
+        "Options:\n" \
+        "\t-c                        Compress\n" \
+        "\t-x                        Decompress\n" \
+        "\t-o OUTPUT_FILE            Set output file (optional).\n" \
+        "\t-h                        Show this guide.\n" \
+        "\t-f                        Overwrite OUTPUT_FILE without asking if it exists.\n" \
+        "\t-r                        Recursively compress a directory (only needed for compression).\n" \
+        "\tINPUT_FILE: Path to the file to compress or restore.\n" \
+        "\tThe -c and -x options are mutually exclusive."
+
     /* Windows headers */
     #include <io.h>
     #include <direct.h>
@@ -44,6 +59,9 @@
     #define O_APPEND _O_APPEND
     #define O_BINARY _O_BINARY
     
+    #define FILE_MODE (_S_IREAD | _S_IWRITE)
+    #define DIR_MODE  0
+
     /* File permission macros */
     #define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
     #define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
@@ -55,6 +73,21 @@
     }
     
 #else
+    #define PROGRAM_USAGE_TEXT \
+        "Huffman encoder\n" \
+        "Usage: %s -c|-x [-o OUTPUT_FILE] INPUT_FILE\n" \
+        "\n" \
+        "Options:\n" \
+        "\t-c                        Compress\n" \
+        "\t-x                        Decompress\n" \
+        "\t-o OUTPUT_FILE            Set output file (optional).\n" \
+        "\t-h                        Show this guide.\n" \
+        "\t-f                        Overwrite OUTPUT_FILE without asking if it exists.\n" \
+        "\t-r                        Recursively compress a directory (only needed for compression).\n" \
+        "\t-P, --no-preserve-perms   When extracting, apply stored permissions even to existing directories.\n" \
+        "\tINPUT_FILE: Path to the file to compress or restore.\n" \
+        "\tThe -c and -x options are mutually exclusive."
+
     /* POSIX/Unix/Linux headers */
     #include <unistd.h>
     #include <fcntl.h>
@@ -63,6 +96,8 @@
     static inline void convert_path(char *path) {
         (void)path;
     }
+    #define FILE_MODE 0666
+    #define DIR_MODE  0777
 #endif
 
 #endif /* COMPATIBILITY_H */

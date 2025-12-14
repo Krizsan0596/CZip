@@ -320,11 +320,11 @@ static void test_run_compression_directory(void) {
     unlink(output_file);
     
     // Create directories with error checking
-    if (mkdir(test_dir, 0755) != 0) {
+    if (mkdir(test_dir, DIR_MODE) != 0) {
         fprintf(stderr, "Failed to create test directory: %s\n", test_dir);
         return;
     }
-    if (mkdir(subdir_path, 0755) != 0) {
+    if (mkdir(subdir_path, DIR_MODE) != 0) {
         fprintf(stderr, "Failed to create test subdirectory: %s\n", subdir_path);
         return;
     }
@@ -649,7 +649,7 @@ static void test_run_compression_readonly_input(void) {
     struct stat st;
     assert(stat(output_file, &st) == 0);
     
-    chmod(test_file, 0644);
+    chmod(test_file, FILE_MODE);
     unlink(test_file);
     unlink(output_file);
 }
@@ -663,7 +663,7 @@ static void test_run_compression_empty_directory(void) {
     remove_directory_recursive(test_dir);
     unlink(output_file);
     
-    mkdir(test_dir, 0755);
+    mkdir(test_dir, DIR_MODE);
     
     Arguments args = {0};
     args.compress_mode = true;
@@ -694,7 +694,7 @@ static void test_run_compression_nested_empty_directories(void) {
     remove_directory_recursive(test_dir);
     unlink(output_file);
     
-    mkdir(test_dir, 0755);
+    mkdir(test_dir, DIR_MODE);
     
 #ifdef _WIN32
     snprintf(subdir1, sizeof(subdir1), "%s\\level1", test_dir);
@@ -706,9 +706,9 @@ static void test_run_compression_nested_empty_directories(void) {
     snprintf(subdir3, sizeof(subdir3), "%s/level1/level2/level3", test_dir);
 #endif
     
-    mkdir(subdir1, 0755);
-    mkdir(subdir2, 0755);
-    mkdir(subdir3, 0755);
+    mkdir(subdir1, DIR_MODE);
+    mkdir(subdir2, DIR_MODE);
+    mkdir(subdir3, DIR_MODE);
     
     Arguments args = {0};
     args.compress_mode = true;

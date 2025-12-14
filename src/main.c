@@ -16,22 +16,7 @@
  * Called for help requests or invalid options.
  */
 static void print_usage(const char *prog_name) {
-    const char *usage =
-        "Huffman encoder\n"
-        "Usage: %s -c|-x [-o OUTPUT_FILE] INPUT_FILE\n"
-        "\n"
-        "Options:\n"
-        "\t-c                        Compress\n"
-        "\t-x                        Decompress\n"
-        "\t-o OUTPUT_FILE            Set output file (optional).\n"
-        "\t-h                        Show this guide.\n"
-        "\t-f                        Overwrite OUTPUT_FILE without asking if it exists.\n"
-        "\t-r                        Recursively compress a directory (only needed for compression).\n"
-        "\t-P, --no-preserve-perms   When extracting, apply stored permissions even to existing directories.\n"
-        "\tINPUT_FILE: Path to the file to compress or restore.\n"
-        "\tThe -c and -x options are mutually exclusive.";
-
-    printf(usage, prog_name);
+    printf(PROGRAM_USAGE_TEXT, prog_name);
 }
 
 /* 

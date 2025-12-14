@@ -175,9 +175,9 @@ int main() {
     char *test_dir = "../tests/prep_test_dir";
     char *output_dir = "prep_output_dir";
     
-    mkdir("../tests", 0755);
-    mkdir("../tests/prep_test_dir", 0755);
-    mkdir("../tests/prep_test_dir/subdir", 0755);
+    mkdir("../tests", DIR_MODE);
+    mkdir("../tests/prep_test_dir", DIR_MODE);
+    mkdir("../tests/prep_test_dir/subdir", DIR_MODE);
     
     FILE *pf1 = fopen("../tests/prep_test_dir/file1.txt", "w");
     if (pf1) {
@@ -248,7 +248,7 @@ int main() {
         
         // Now test restore_directory
         remove_directory_recursive(output_dir);
-        mkdir(output_dir, 0755);
+        mkdir(output_dir, DIR_MODE);
         
         int result = restore_directory(temp_file, output_dir, true, false);
         fclose(temp_file);
@@ -456,11 +456,11 @@ int main() {
     char *perm_output_dir = "perm_output_dir";
     
     // Create test directory structure with non-default permissions
-    mkdir("../tests", 0755);
-    mkdir("../tests/perm_test_dir", 0755);
+    mkdir("../tests", DIR_MODE);
+    mkdir("../tests/perm_test_dir", DIR_MODE);
     mkdir("../tests/perm_test_dir/subdir_700", 0700);  // Owner only (rwx------)
     mkdir("../tests/perm_test_dir/subdir_750", 0750);  // Owner + group read (rwxr-x---)
-    mkdir("../tests/perm_test_dir/subdir_755", 0755);  // Standard permissions (rwxr-xr-x)
+    mkdir("../tests/perm_test_dir/subdir_755", DIR_MODE);  // Standard permissions (rwxr-xr-x)
     
     // Create test files in the directories
     FILE *perm_f1 = fopen("../tests/perm_test_dir/file1.txt", "w");
@@ -543,7 +543,7 @@ int main() {
         
         // Extract the directory
         remove_directory_recursive(perm_output_dir);
-        mkdir(perm_output_dir, 0755);
+        mkdir(perm_output_dir, DIR_MODE);
         
         int result = restore_directory(temp_file, perm_output_dir, true, false);
         fclose(temp_file);

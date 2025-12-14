@@ -232,12 +232,14 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
            free(full_path);
            return MKDIR_ERROR;
        }
+       #ifndef _WIN32
        if (no_preserve_perms && errno == EEXIST) {
            if (chmod(full_path, item->perms) != 0) {
                free(full_path);
                return MKDIR_ERROR;
            }
        }
+       #endif
     }
     else {
         if (item->file_size == 0) {
@@ -486,7 +488,7 @@ int restore_directory(FILE *temp_file, char *output_file, bool force, bool no_pr
         rewind(temp_file);
         
         if (output_file != NULL) {
-            if (mkdir(output_file, 0755) != 0 && errno != EEXIST) {
+            if (mkdir(output_file, DIR_MODE) != 0 && errno != EEXIST) {
                 fputs("Failed to create the output directory.\n", stderr);
                 res = MKDIR_ERROR;
                 break;

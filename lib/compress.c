@@ -41,6 +41,7 @@ int count_frequencies(const char *data, long data_len, long *frequencies) {
  */
 char* generate_output_file(char *input_file){
     char *dir_end = strrchr(input_file, '/');
+    if (dir_end == NULL) dir_end = strrchr(input_file, '\\');
     char *name_end;
     if (dir_end != NULL) name_end = strrchr(dir_end, '.');
     else name_end = strrchr(input_file, '.');
