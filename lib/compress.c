@@ -53,18 +53,14 @@ char* generate_output_file(char *input_file){
         if (out == NULL) {
             return NULL;
         }
-        strncpy(out, input_file, name_len);
-        out[name_len] = '\0';
-        strcat(out, ".huff");
+        snprintf(out, name_len + 6, "%.*s.huff", (int)name_len, input_file);
     }
     else {
         out = malloc(strlen(input_file) + 6);
         if (out == NULL) {
             return NULL;
         }
-        strcpy(out, input_file);
-
-        strcat(out, ".huff");
+        snprintf(out, strlen(input_file) + 6, "%s.huff", input_file);
     }
     return out;
 }
@@ -154,8 +150,7 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
         if (res != NULL) {
             path = malloc((strlen(res) + 2) * sizeof(char));
             if (path != NULL) {
-                strcpy(path, "0");
-                strcat(path, res);
+                snprintf(path, strlen(res) + 2, "0%s", res);
             }
             free(res);
             return path;
@@ -164,8 +159,7 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
         if (res != NULL) {
             path = malloc((strlen(res) + 2) * sizeof(char));
             if (path != NULL) {
-                strcpy(path, "1");
-                strcat(path, res);
+                snprintf(path, strlen(res) + 2, "1%s", res);
             }
             free(res);
             return path;

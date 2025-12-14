@@ -65,9 +65,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 result = MALLOC_ERROR;
                 break;
             }
-            strcpy(newpath, path);
-            strcat(newpath, "/");
-            strcat(newpath, dir->d_name);
+            snprintf(newpath, strlen(path) + strlen(dir->d_name) + 2, "%s/%s", path, dir->d_name);
 
             struct stat st;
             if (stat(newpath, &st) != 0) {
@@ -223,9 +221,7 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
     if (full_path == NULL) return MALLOC_ERROR;
 
     /* If the user provided an output directory, start building the structure there. */
-    strcpy(full_path, path);
-    strcat(full_path, "/");
-    strcat(full_path, item_path);
+    snprintf(full_path, strlen(path) + strlen(item_path) + 2, "%s/%s", path, item_path);
     if (item->is_dir) {
        int ret = mkdir(full_path, item->perms);
        if (ret != 0 && errno != EEXIST) {
@@ -397,8 +393,7 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
                 if (parent_dir == NULL) {
                     break;
                 }
-                strncpy(parent_dir, input_file, parent_dir_len);
-                parent_dir[parent_dir_len] = '\0';
+                snprintf(parent_dir, parent_dir_len + 1, "%.*s", parent_dir_len, input_file);
             }
             file_name = strdup(sep + 1);
             if (file_name == NULL) {
