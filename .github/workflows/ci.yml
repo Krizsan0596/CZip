@@ -29,7 +29,7 @@ jobs:
       run: |
         cmake -S . -B build-tidy -G Ninja \
         -DCMAKE_C_COMPILER=clang \
-        -DCMAKE_C_CLANG_TIDY="clang-tidy;-warnings-as-errors=*"
+        -DCMAKE_C_CLANG_TIDY="clang-tidy;--config-file=${GITHUB_WORKSPACE}/.github/.clang-tidy;-warnings-as-errors=*"
 
     - name: Build (clang-tidy)
       run: cmake --build build-tidy
