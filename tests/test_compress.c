@@ -84,8 +84,8 @@ static void free_cache(char **cache) {
 }
 
 static int invoke_run_compression(Arguments args) {
-    const char *data = NULL;
-    char *allocated_data = NULL;
+    const uint8_t *data = NULL;
+    uint8_t *allocated_data = NULL;
     long data_len = 0;
     long directory_size = 0;
     bool use_mmap = false;
@@ -105,7 +105,7 @@ static int invoke_run_compression(Arguments args) {
         data = allocated_data;
         data_len = read_res;
     } else {
-        int read_res = read_raw(args.input_file, (const char**)&data);
+        int read_res = read_raw(args.input_file, &data);
         if (read_res < 0) {
             return read_res;
         }
@@ -127,7 +127,7 @@ static void build_huffman_tree(const char *input, long len, Node **out_nodes, No
     long *frequencies = calloc(256, sizeof(long));
     assert(frequencies != NULL);
 
-    count_frequencies((char *)input, len, frequencies);
+    count_frequencies((const uint8_t *)input, len, frequencies);
 
     int leaf_count = 0;
     for (int i = 0; i < 256; ++i) {
@@ -144,7 +144,7 @@ static void build_huffman_tree(const char *input, long len, Node **out_nodes, No
     int idx = 0;
     for (int i = 0; i < 256; ++i) {
         if (frequencies[i] != 0) {
-            nodes[idx++] = construct_leaf(frequencies[i], (char)i);
+            nodes[idx++] = construct_leaf(frequencies[i], (uint8_t)i);
         }
     }
 
@@ -170,11 +170,11 @@ static void test_compress_basic_pattern(void) {
     assert(cache != NULL);
 
     Compressed_file compressed = {0};
-    int rc = compress((char *)input, len, nodes, root, cache, &compressed);
+    int rc = compress((const uint8_t *)input, len, nodes, root, cache, &compressed);
     assert(rc == 0);
     assert(compressed.data_size == 6);          // 6 characters encoded with 1 bit per symbol
     assert(compressed.compressed_data != NULL);
-    assert(compressed.compressed_data[0] == (char)0xF0);
+    assert(compressed.compressed_data[0] == (uint8_t)0xF0);
     (void)rc;
 
     free(compressed.compressed_data);
@@ -190,7 +190,7 @@ static void test_compress_zero_length(void) {
     assert(cache != NULL);
 
     Compressed_file compressed = {0};
-    int rc = compress("", 0, dummy_nodes, &dummy_nodes[0], cache, &compressed);
+    int rc = compress((const uint8_t *) "", 0, dummy_nodes, &dummy_nodes[0], cache, &compressed);
     assert(rc == 0);
     assert(compressed.data_size == 0);
     assert(compressed.compressed_data == NULL);
@@ -466,7 +466,7 @@ static void test_compress_single_char(void) {
     assert(cache != NULL);
     
     Compressed_file compressed = {0};
-    int rc = compress((char *)input, len, nodes, root, cache, &compressed);
+    int rc = compress((const uint8_t *)input, len, nodes, root, cache, &compressed);
     assert(rc == 0);
     (void)rc;
     
@@ -492,7 +492,7 @@ static void test_compress_all_same_char(void) {
     assert(cache != NULL);
     
     Compressed_file compressed = {0};
-    int rc = compress((char *)input, len, nodes, root, cache, &compressed);
+    int rc = compress((const uint8_t *)input, len, nodes, root, cache, &compressed);
     assert(rc == 0);
     assert(compressed.data_size == 10);
     assert(compressed.compressed_data != NULL);
@@ -515,7 +515,7 @@ static void test_compress_all_unique_chars(void) {
     assert(cache != NULL);
     
     Compressed_file compressed = {0};
-    int rc = compress((char *)input, len, nodes, root, cache, &compressed);
+    int rc = compress((const uint8_t *)input, len, nodes, root, cache, &compressed);
     assert(rc == 0);
     assert(compressed.compressed_data != NULL);
     (void)rc;
@@ -540,7 +540,7 @@ static void test_compress_binary_data(void) {
     assert(cache != NULL);
     
     Compressed_file compressed = {0};
-    int rc = compress(input, len, nodes, root, cache, &compressed);
+    int rc = compress((const uint8_t *)input, len, nodes, root, cache, &compressed);
     assert(rc == 0);
     assert(compressed.compressed_data != NULL);
     (void)rc;

@@ -41,7 +41,7 @@ const char* get_unit(size_t *bytes) {
  * Reads the file into memory; the caller supplies the pointer.
  * Returns the number of bytes read on success or a negative code on error.
  */
-int read_raw(char file_name[], const char** data){
+int read_raw(char file_name[], const uint8_t** data){
     int fd = open(file_name, O_RDONLY);
     if (fd == -1) return FILE_READ_ERROR;
     struct stat st;
@@ -51,7 +51,7 @@ int read_raw(char file_name[], const char** data){
     void *map = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (map == MAP_FAILED) { close(fd); return FILE_READ_ERROR; }
     close(fd);
-    *data = map;
+    *data = (uint8_t*)map;
     return file_size;
 }
 
@@ -60,7 +60,7 @@ int read_raw(char file_name[], const char** data){
  * Returns the number of bytes read on success or a negative code on error.
  * Caller must free the returned buffer.
  */
-int read_from_file(FILE *f, char** data) {
+int read_from_file(FILE *f, uint8_t** data) {
     if (f == NULL) return FILE_READ_ERROR;
     
     long file_size = get_file_size(f);
@@ -87,7 +87,7 @@ int read_from_file(FILE *f, char** data) {
  * Returns the file size on success or negative error codes on failure.
  * Caller must munmap the returned pointer.
  */
-int write_raw(char *file_name, char **data, long file_size, bool overwrite){
+int write_raw(char *file_name, uint8_t **data, long file_size, bool overwrite){
     int fd = -1;
     void *map = NULL;
     int ret = SUCCESS;
@@ -125,7 +125,7 @@ int write_raw(char *file_name, char **data, long file_size, bool overwrite){
         }
         
         close(fd);
-        *data = (char*)map;
+        *data = (uint8_t*)map;
         return file_size;
     }
     
@@ -142,9 +142,9 @@ int write_raw(char *file_name, char **data, long file_size, bool overwrite){
  * while file names are duplicated onto the heap.
  * Caller must munmap using the returned mmap_ptr and size (returned as function result).
  */
-int read_compressed(char file_name[], Compressed_file *compressed, const char **mmap_ptr){
+int read_compressed(char file_name[], Compressed_file *compressed, const uint8_t **mmap_ptr){
     int ret = SUCCESS;
-    const char* data = NULL;
+    const uint8_t* data = NULL;
     long file_size = read_raw(file_name, &data);
     
     if (file_size < 0) {
@@ -156,8 +156,8 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
     compressed->compressed_data = NULL;
     compressed->file_name = NULL;
 
-    const char* current = data;
-    const char* end = data + file_size;
+    const uint8_t* current = data;
+    const uint8_t* end = data + file_size;
 
     while (true) {
         if (current + sizeof(magic) > end) {
@@ -212,12 +212,12 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
         compressed->original_file[name_len] = '\0';
         current += name_len;
 
-        if (current + sizeof(size_t) > end) {
+        if (current + sizeof(uint64_t) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
-        compressed->tree_size = *(size_t*)current;
-        current += sizeof(size_t);
+        compressed->tree_size = *(uint64_t*)current;
+        current += sizeof(uint64_t);
 
         if (current + compressed->tree_size > end) {
             ret = FILE_READ_ERROR;
@@ -226,19 +226,19 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
         compressed->huffman_tree = (Node*)current;
         current += compressed->tree_size;
 
-        if (current + sizeof(size_t) > end) {
+        if (current + sizeof(uint64_t) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
-        compressed->data_size = *(size_t*)current;
-        current += sizeof(size_t);
+        compressed->data_size = *(uint64_t*)current;
+        current += sizeof(uint64_t);
 
         size_t compressed_bytes = (size_t)ceil((double)compressed->data_size / 8.0);
         if (current + compressed_bytes > end) {
             ret = FILE_READ_ERROR;
             break;
         }
-        compressed->compressed_data = (char*)current;
+        compressed->compressed_data = (uint8_t*)current;
 
         compressed->file_name = strdup(file_name);
         if (compressed->file_name == NULL) {
@@ -270,16 +270,16 @@ int read_compressed(char file_name[], Compressed_file *compressed, const char **
 int write_compressed(Compressed_file *compressed, bool overwrite) {
     size_t name_len = strlen(compressed->original_file);
     long file_size = (sizeof(char) * 4) + sizeof(bool) + sizeof(size_t) + sizeof(long) +
-                     name_len * sizeof(char) + sizeof(size_t) + compressed->tree_size +
-                     sizeof(size_t) + (compressed->data_size + 7) / 8;
+                     name_len * sizeof(char) + sizeof(uint64_t) + compressed->tree_size +
+                     sizeof(uint64_t) + (compressed->data_size + 7) / 8;
 
-    char *map = NULL;
+    uint8_t *map = NULL;
     int ret = write_raw(compressed->file_name, &map, file_size, overwrite);
     if (ret < 0) {
         return ret;
     }
 
-    unsigned char *data = (unsigned char*)map;
+    uint8_t *data = map;
     for (int i = 0; i < 4; i++) {
         data[i] = magic[i];
     }
@@ -292,12 +292,12 @@ int write_compressed(Compressed_file *compressed, bool overwrite) {
     data += sizeof(long);
     memcpy(data, compressed->original_file, name_len);
     data += name_len;
-    memcpy(data, &compressed->tree_size, sizeof(size_t));
-    data += sizeof(size_t);
+    memcpy(data, &compressed->tree_size, sizeof(uint64_t));
+    data += sizeof(uint64_t);
     memcpy(data, compressed->huffman_tree, compressed->tree_size);
     data += compressed->tree_size;
-    memcpy(data, &compressed->data_size, sizeof(size_t));
-    data += sizeof(size_t);
+    memcpy(data, &compressed->data_size, sizeof(uint64_t));
+    data += sizeof(uint64_t);
     memcpy(data, compressed->compressed_data, (compressed->data_size + 7) / 8);
 
     if (msync(map, file_size, MS_SYNC) == -1) {

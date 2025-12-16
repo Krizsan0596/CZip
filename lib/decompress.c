@@ -14,7 +14,7 @@
  * Reads from the compressed buffer and writes the decompressed bytes into the caller-provided array.
  * Returns 0 on success or a negative value on failure.
  */
-int decompress(Compressed_file *compressed, char *raw) {
+int decompress(Compressed_file *compressed, uint8_t *raw) {
     size_t root_index = (compressed->tree_size / sizeof(Node)) - 1;
 
     size_t current_node = root_index;
@@ -23,7 +23,7 @@ int decompress(Compressed_file *compressed, char *raw) {
     // Check whether the root is a leaf (the single unique character case).
     bool root_is_leaf = (compressed->huffman_tree[root_index].type == LEAF);
 
-    unsigned char buffer = 0;
+    uint8_t buffer = 0;
     for (size_t i = 0; i < (size_t)compressed->data_size; i++) {
         if (current_raw >= compressed->original_size) {
             break;
@@ -59,16 +59,16 @@ int decompress(Compressed_file *compressed, char *raw) {
  * For directories: allocates a buffer for serialized data (caller must free).
  * Output pointer arguments must be valid addresses; the function allocates and assigns the data.
  */
-int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_directory, char **original_name) {
+int run_decompression(Arguments args, uint8_t **raw_data, long *raw_size, bool *is_directory, char **original_name) {
     *raw_data = NULL;
     *raw_size = 0;
     *is_directory = false;
     *original_name = NULL;
 
     Compressed_file *compressed_file = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     long mmap_size = 0;
-    char *output_mmap = NULL;
+    uint8_t *output_mmap = NULL;
     long output_mmap_size = 0;
     int res = 0;
 
@@ -117,7 +117,7 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         }
 
         if (compressed_file->is_dir) {
-            *raw_data = malloc(compressed_file->original_size * sizeof(char));
+            *raw_data = malloc(compressed_file->original_size * sizeof(uint8_t));
             if (*raw_data == NULL) {
                 fputs("Failed to allocate memory.\n", stderr);
                 res = ENOMEM;

@@ -151,8 +151,8 @@ int main(int argc, char* argv[]){
     }
     
     if (args.compress_mode) {
-        const char *data = NULL;
-        char *allocated_data = NULL;
+        const uint8_t *data = NULL;
+        uint8_t *allocated_data = NULL;
         long data_len = 0;
         long directory_size = 0;
         int directory_size_int = 0;
@@ -211,7 +211,7 @@ int main(int argc, char* argv[]){
         }
         return compress_res;
     } else if (args.extract_mode) {
-        char *raw_data = NULL;
+        uint8_t *raw_data = NULL;
         long raw_size = 0;
         bool is_dir = false;
         char *original_name = NULL;

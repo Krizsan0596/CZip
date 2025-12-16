@@ -12,8 +12,8 @@
 
 // Helper for sorting with qsort.
 static int compare_nodes(const void *a, const void *b) {
-    long freq_a = ((Node*)a)->frequency;
-    long freq_b = ((Node*)b)->frequency;
+    uint64_t freq_a = ((Node*)a)->frequency;
+    uint64_t freq_b = ((Node*)b)->frequency;
     if (freq_a < freq_b) return -1;
     if (freq_a > freq_b) return 1;
     return 0;
@@ -28,9 +28,9 @@ void sort_nodes(Node *nodes, int len) {
  * Iterates through the raw data and increments the 256-element frequency array in place.
  * Returns 0 after processing every byte; the caller must supply a zeroed frequencies array.
  */
-int count_frequencies(const char *data, long data_len, long *frequencies) {
+int count_frequencies(const uint8_t *data, long data_len, long *frequencies) {
     for (size_t i = 0; i < (size_t)data_len; i++){
-        frequencies[(unsigned char) data[i]] += 1;
+        frequencies[data[i]] += 1;
     }
     return 0;
 }
@@ -66,7 +66,7 @@ char* generate_output_file(char *input_file){
 }
 
 // Creates a leaf that stores the byte and its associated frequency.
-Node construct_leaf(long frequency, char data) {
+Node construct_leaf(uint64_t frequency, uint8_t data) {
     Node leaf = {0};
     leaf.type = LEAF;
     leaf.frequency = frequency;
@@ -126,15 +126,15 @@ Node* construct_tree(Node *nodes, long leaf_count) { // nodes is sorted
  * Checks whether the sought byte's path in the Huffman tree is already cached.
  * Returns the path string if present, otherwise NULL.
  */
-char* check_cache(char leaf, char **cache) {
-    if (cache[(unsigned char) leaf] != NULL) return cache[(unsigned char) leaf];
+char* check_cache(uint8_t leaf, char **cache) {
+    if (cache[leaf] != NULL) return cache[leaf];
     else return NULL;
 }
 
 /*
  * Recursively traverses the Huffman tree, finds the byte's position, and builds the path.
  */
-char* find_leaf(char leaf, Node *nodes, Node *root_node) {
+char* find_leaf(uint8_t leaf, Node *nodes, Node *root_node) {
     char *path = NULL; 
     if (root_node->type == LEAF) {
         if (root_node->data == leaf) {
@@ -174,21 +174,21 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
  * Loads the data needed for decompression into a Compressed_file structure.
  * Returns 0 on success or a negative value for allocation or traversal errors.
  */
-int compress(const char *original_data, long data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
+int compress(const uint8_t *original_data, long data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
     if (data_len == 0) {
         compressed_file->data_size = 0;
         compressed_file->compressed_data = NULL;
         return 0;
     }
 
-    compressed_file->compressed_data = malloc(data_len * sizeof(char));
+    compressed_file->compressed_data = malloc(data_len * sizeof(uint8_t));
     if (compressed_file->compressed_data == NULL) {
         compressed_file->data_size = 0;
         return MALLOC_ERROR;
     }
 
     size_t total_bits = 0;
-    unsigned char buffer = 0;
+    uint8_t buffer = 0;
     int bit_count = 0;
 
     for (size_t i = 0; i < (size_t)data_len; i++) {
@@ -196,7 +196,7 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
         if (path == NULL) {
             path = find_leaf(original_data[i], nodes, root_node);
             if (path != NULL) {
-                cache[(unsigned char)original_data[i]] = path;
+                cache[original_data[i]] = path;
             } else {
                 free(compressed_file->compressed_data);
                 compressed_file->compressed_data = NULL;
@@ -248,7 +248,7 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
     compressed_file->data_size = total_bits;
 
     size_t final_size = (size_t)ceil((double)total_bits / 8.0);
-    char *temp = realloc(compressed_file->compressed_data, final_size);
+    uint8_t *temp = realloc(compressed_file->compressed_data, final_size);
     if (temp != NULL) {
         compressed_file->compressed_data = temp;
     }
@@ -261,7 +261,7 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
  * The caller must supply the raw data beforehand (file read, directory serialization).
  * Reads directory mode from args.directory. Returns 0 on success or a negative error code.
  */
-int run_compression(Arguments args, const char *data, long data_len, long directory_size) {
+int run_compression(Arguments args, const uint8_t *data, long data_len, long directory_size) {
     // If the user did not provide an output file, generate one.
     bool output_generated = false;
     if (args.output_file == NULL) {
@@ -277,7 +277,7 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
     long *frequencies = NULL;
     Compressed_file *compressed_file = NULL;
     Node *nodes = NULL;
-    long tree_size = 0;
+    uint64_t tree_size = 0;
     char **cache = NULL;
     int res = 0;
     
@@ -317,7 +317,7 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         int j = 0;
         for (int i = 0; i < 256; i++) {
             if (frequencies[i] != 0) {
-                nodes[j] = construct_leaf(frequencies[i], (char)i);
+                nodes[j] = construct_leaf(frequencies[i], (uint8_t)i);
                 j++;
             }
         }

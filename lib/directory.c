@@ -109,7 +109,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                     current_item = file;
                     break;
                 }
-                file.file_size = read_raw(newpath, (const char**)&file.file_data);
+                file.file_size = read_raw(newpath, (const uint8_t**)&file.file_data);
                 if (file.file_size < 0) {
                     if (file.file_size == EMPTY_FILE) {
                         /* Empty files are valid - include them with size 0 */
@@ -200,7 +200,7 @@ long serialize_item(Directory_item *item, FILE *f) {
         data_size += path_len;
         
         if (item->file_size > 0) {
-            if (fwrite(item->file_data, sizeof(char), item->file_size, f) != (size_t)item->file_size) {
+            if (fwrite(item->file_data, sizeof(uint8_t), item->file_size, f) != (size_t)item->file_size) {
                 return FILE_WRITE_ERROR;
             }
             data_size += item->file_size;
@@ -247,7 +247,7 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
             fclose(f);
         } else if (item->file_size > 0) {
             if (item->file_data == NULL) return FILE_READ_ERROR;
-            char *mmap_ptr = NULL;
+            uint8_t *mmap_ptr = NULL;
             int ret = write_raw(full_path, &mmap_ptr, item->file_size, force);
             if (ret < 0) {
                 free(full_path);
@@ -326,14 +326,14 @@ long deserialize_item(Directory_item *item, FILE *f) {
                 return MALLOC_ERROR;
             }
             
-            if (fread(item->file_data, sizeof(char), item->file_size, f) != (size_t)item->file_size) {
+            if (fread(item->file_data, sizeof(uint8_t), item->file_size, f) != (size_t)item->file_size) {
                 free(item->file_path);
                 free(item->file_data);
                 item->file_path = NULL;
                 item->file_data = NULL;
                 return FILE_READ_ERROR;
             }
-            read_size += sizeof(char) * item->file_size;
+            read_size += sizeof(uint8_t) * item->file_size;
         } else {
             item->file_data = NULL;
         }

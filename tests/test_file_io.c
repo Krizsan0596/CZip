@@ -33,7 +33,7 @@ void test_file_io() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("test.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
@@ -84,7 +84,7 @@ void test_file_io_with_empty_filename() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("empty_name.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
@@ -133,7 +133,7 @@ void test_file_io_with_long_filename() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("long_name.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
@@ -194,7 +194,7 @@ void test_file_io_with_large_tree() {
     data.tree_size = 10240;
     data.huffman_tree = malloc(data.tree_size);
     for (long i = 0; i < data.tree_size; i++) {
-        ((char *)data.huffman_tree)[i] = (char)(i % 256);
+        ((uint8_t *)data.huffman_tree)[i] = (uint8_t)(i % 256);
     }
 
     data.data_size = 200;
@@ -210,7 +210,7 @@ void test_file_io_with_large_tree() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("large_tree.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
@@ -242,16 +242,15 @@ void test_file_io_with_binary_data() {
 
     // Fill with all byte values
     for (int i = 0; i < data.tree_size; i++) {
-        ((char *)data.huffman_tree)[i] = (char)(i % 256);
+        ((uint8_t *)data.huffman_tree)[i] = (uint8_t)(i % 256);
     }
 
     data.data_size = 2048; // 256 bytes
     long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
     data.compressed_data = malloc(compressed_bytes);
 
-    // Fill with all byte values including nulls
     for (long i = 0; i < compressed_bytes; i++) {
-        ((char *)data.compressed_data)[i] = (char)(i % 256);
+        ((uint8_t *)data.compressed_data)[i] = (uint8_t)(i % 256);
     }
 
     data.file_name = strdup("binary.huf");
@@ -263,7 +262,7 @@ void test_file_io_with_binary_data() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("binary.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
@@ -309,7 +308,7 @@ void test_file_io_directory_flag() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("directory.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
@@ -351,7 +350,7 @@ void test_file_io_special_chars_in_original_filename() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("special.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
@@ -375,7 +374,7 @@ void test_file_io_read_nonexistent_file() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
 
     int result =
         read_compressed("nonexistent_file_12345.huf", &read_data, &mmap_ptr);
@@ -401,8 +400,9 @@ void test_file_io_very_large_compressed_data() {
     data.data_size = 819200;
     long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
     data.compressed_data = malloc(compressed_bytes);
+    // Fill with all byte values including nulls
     for (long i = 0; i < compressed_bytes; i++) {
-        ((char *)data.compressed_data)[i] = (char)(i % 256);
+        ((uint8_t *)data.compressed_data)[i] = (uint8_t)(i % 256);
     }
     data.file_name = strdup("huge.huf");
 
@@ -413,7 +413,7 @@ void test_file_io_very_large_compressed_data() {
     read_data.huffman_tree = NULL;
     read_data.compressed_data = NULL;
     read_data.file_name = NULL;
-    const char *mmap_ptr = NULL;
+    const uint8_t *mmap_ptr = NULL;
     int mmap_size = read_compressed("huge.huf", &read_data, &mmap_ptr);
     assert(mmap_size > 0);
 
