@@ -6,7 +6,6 @@
 #include "../lib/compatibility.h"
 #include "../lib/directory.h"
 #include "../lib/data_types.h"
-#include "../lib/debugmalloc.h"
 
 // Helper function to recursively delete a directory
 static int remove_directory_recursive(const char *path) {

@@ -8,7 +8,6 @@
 #include "compress.h"
 #include "data_types.h"
 #include "directory.h"
-#include "debugmalloc.h"
 
 // Helper for sorting with qsort.
 static int compare_nodes(const void *a, const void *b) {

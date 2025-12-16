@@ -8,7 +8,6 @@
 #include "../lib/file.h"
 #include "../lib/compress.h"
 #include "../lib/data_types.h"
-#include "../lib/debugmalloc.h"
 #include "../lib/directory.h"
 
 // Helper function to get cross-platform temporary directory
@@ -555,9 +554,6 @@ static void test_run_compression_moderately_large_file(void) {
     char output_file[512];
     build_temp_path(test_file, sizeof(test_file), "test_large_file.txt");
     build_temp_path(output_file, sizeof(output_file), "test_large_output.huff");
-    
-    // Increase debugmalloc limits for this test
-    debugmalloc_max_block_size(10 * 1024 * 1024);  // 10MB
     
     FILE *f = fopen(test_file, "w");
     assert(f != NULL);

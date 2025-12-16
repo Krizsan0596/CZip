@@ -2,7 +2,6 @@
 #include "data_types.h"
 #include "file.h"
 #include "compatibility.h"
-#include "debugmalloc.h"
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -260,7 +259,10 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
                 return FILE_WRITE_ERROR;
             }
             munmap(mmap_ptr, item->file_size);
-        } else return FILE_READ_ERROR;
+        } else {
+            free(full_path);
+            return FILE_READ_ERROR;
+        }
     }
     free(full_path);
     return SUCCESS;

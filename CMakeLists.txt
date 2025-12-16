@@ -57,11 +57,12 @@ IF (WIN32)
     target_include_directories(dirent_static INTERFACE ${dirent_SOURCE_DIR}/include)
 
     # Fetch mman and compile as static library
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
     FetchContent_Declare(
         mman
         URL https://github.com/alitrack/mman-win32/archive/refs/heads/master.zip
     )
-    FetchContent_MakeAvailable(mman)
+    FetchContent_Populate(mman)
     
     # Create static library for mman
     add_library(mman_static STATIC ${mman_SOURCE_DIR}/mman.c)

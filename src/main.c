@@ -9,7 +9,6 @@
 #include "../lib/decompress.h"
 #include "../lib/directory.h"
 #include "../lib/data_types.h"
-#include "../lib/debugmalloc.h"
 
 /*
  * Prints program usage instructions.

@@ -8,7 +8,6 @@
 #include "../lib/decompress.h"
 #include "../lib/file.h"
 #include "../lib/data_types.h"
-#include "../lib/debugmalloc.h"
 #include "../lib/directory.h"
 
 static int invoke_run_compression(Arguments args) {
@@ -126,7 +125,7 @@ int main() {
 
     char **cache = calloc(256, sizeof(char*));
 
-    Compressed_file *compressed_file = malloc(sizeof(Compressed_file));
+    Compressed_file *compressed_file = calloc(1, sizeof(Compressed_file));
     int compress_result = compress((const uint8_t*)data, data_len, nodes, root_node, cache, compressed_file);
     if (compress_result != 0) {
         fprintf(stderr, "Compression failed with error code %d!\n", compress_result);
@@ -143,6 +142,7 @@ int main() {
 
     compressed_file->huffman_tree = nodes;
     compressed_file->tree_size = tree_size * sizeof(Node);
+    compressed_file->original_size = data_len;
 
     uint8_t *raw_data = malloc(data_len * sizeof(uint8_t));
     int decompress_result = decompress(compressed_file, raw_data);
@@ -401,13 +401,14 @@ int main() {
         Node *single_root = construct_tree(single_nodes, leaf_cnt);
         
         char **single_cache = calloc(256, sizeof(char*));
-        Compressed_file *single_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *single_compressed = calloc(1, sizeof(Compressed_file));
         
         int comp_res = compress((const uint8_t*)single_char, single_len, single_nodes, single_root, single_cache, single_compressed);
         assert(comp_res == 0);
         
         single_compressed->huffman_tree = single_nodes;
         single_compressed->tree_size = ((single_root - single_nodes) + 1) * sizeof(Node);
+        single_compressed->original_size = single_len;
         
         uint8_t *single_raw = malloc(single_len);
         int decomp_res = decompress(single_compressed, single_raw);
@@ -452,13 +453,14 @@ int main() {
         Node *pattern_root = construct_tree(pattern_nodes, leaf_cnt);
         
         char **pattern_cache = calloc(256, sizeof(char*));
-        Compressed_file *pattern_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *pattern_compressed = calloc(1, sizeof(Compressed_file));
         
         int comp_res = compress((const uint8_t*)pattern, pattern_len, pattern_nodes, pattern_root, pattern_cache, pattern_compressed);
         assert(comp_res == 0);
         
         pattern_compressed->huffman_tree = pattern_nodes;
         pattern_compressed->tree_size = ((pattern_root - pattern_nodes) + 1) * sizeof(Node);
+        pattern_compressed->original_size = pattern_len;
         
         uint8_t *pattern_raw = malloc(pattern_len);
         int decomp_res = decompress(pattern_compressed, pattern_raw);
@@ -506,13 +508,14 @@ int main() {
         Node *ascii_root = construct_tree(ascii_nodes, leaf_cnt);
         
         char **ascii_cache = calloc(256, sizeof(char*));
-        Compressed_file *ascii_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *ascii_compressed = calloc(1, sizeof(Compressed_file));
         
         int comp_res = compress((const uint8_t*)ascii_str, ascii_len, ascii_nodes, ascii_root, ascii_cache, ascii_compressed);
         assert(comp_res == 0);
         
         ascii_compressed->huffman_tree = ascii_nodes;
         ascii_compressed->tree_size = ((ascii_root - ascii_nodes) + 1) * sizeof(Node);
+        ascii_compressed->original_size = ascii_len;
         
         uint8_t *ascii_raw = malloc(ascii_len);
         int decomp_res = decompress(ascii_compressed, ascii_raw);
@@ -557,13 +560,14 @@ int main() {
         Node *binary_root = construct_tree(binary_nodes, leaf_cnt);
         
         char **binary_cache = calloc(256, sizeof(char*));
-        Compressed_file *binary_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *binary_compressed = calloc(1, sizeof(Compressed_file));
         
         int comp_res = compress((const uint8_t*)binary_data, binary_len, binary_nodes, binary_root, binary_cache, binary_compressed);
         assert(comp_res == 0);
         
         binary_compressed->huffman_tree = binary_nodes;
         binary_compressed->tree_size = ((binary_root - binary_nodes) + 1) * sizeof(Node);
+        binary_compressed->original_size = binary_len;
         
         uint8_t *binary_raw = malloc(binary_len);
         int decomp_res = decompress(binary_compressed, binary_raw);
@@ -617,7 +621,6 @@ int main() {
         // Create large file with repetitive but varied content
         FILE *lf = fopen(large_input, "w");
         assert(lf != NULL);
-        debugmalloc_max_block_size(10 * 1024 * 1024);  // 10MB
         for (int i = 0; i < 10000; i++) {
             fprintf(lf, "Line %d: Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n", i);
         }

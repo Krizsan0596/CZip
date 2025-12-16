@@ -67,7 +67,7 @@ jobs:
         path: scan-build-reports
 
   tests:
-    name: unit tests (${{ matrix.os }}, ${{ matrix.build_type }}, ${{ matrix.c_compiler }})
+    name: unit tests (${{ matrix.os }}, ${{ matrix.build_type }}, ${{ matrix.c_compiler }}) with sanitizers
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -81,12 +81,24 @@ jobs:
           - os: windows-latest
             c_compiler: cl
             cpp_compiler: cl
+            c_sanitize_flags: "/fsanitize=address"
+            c_link_flags: "/DEBUG /INCREMENTAL:NO"
+            asan_options: "abort_on_error=1"
+            ubsan_options: ""
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
+            c_sanitize_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer"
+            c_link_flags: "-fsanitize=address,undefined"
+            asan_options: "detect_leaks=1:halt_on_error=1"
+            ubsan_options: "print_stacktrace=1"
           - os: ubuntu-latest
             c_compiler: clang
             cpp_compiler: clang++
+            c_sanitize_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer"
+            c_link_flags: "-fsanitize=address,undefined"
+            asan_options: "detect_leaks=1:halt_on_error=1"
+            ubsan_options: "print_stacktrace=1"
         exclude:
           - os: windows-latest
             c_compiler: gcc
@@ -109,6 +121,9 @@ jobs:
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_C_FLAGS="${{ matrix.c_sanitize_flags }}"
+        -DCMAKE_EXE_LINKER_FLAGS="${{ matrix.c_link_flags }}"
+        -DCMAKE_SHARED_LINKER_FLAGS="${{ matrix.c_link_flags }}"
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -S ${{ github.workspace }}
 
@@ -117,6 +132,9 @@ jobs:
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      env:
+        ASAN_OPTIONS: ${{ matrix.asan_options }}
+        UBSAN_OPTIONS: ${{ matrix.ubsan_options }}
       run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
 
   coverage:
@@ -156,34 +174,3 @@ jobs:
       with:
         name: coverage-html
         path: coverage-html
-
-  sanitizers:
-    name: sanitizers (ASan + UBSan)
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Cache apt packages
-      uses: actions/cache@v4
-      with:
-        path: /var/cache/apt/archives
-        key: apt-sanitizers-${{ runner.os }}
-
-    - name: Install clang
-      run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
-
-    - name: Configure with sanitizers
-      run: |
-        cmake -S . -B build-sani -G Ninja \
-        -DCMAKE_C_COMPILER=clang \
-        -DCMAKE_BUILD_TYPE=Debug \
-        -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
-
-    - name: Build
-      run: cmake --build build-sani
-
-    - name: Run tests with sanitizers
-      env:
-        ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-        UBSAN_OPTIONS: print_stacktrace=1
-      run: ctest --test-dir build-sani --output-on-failure
