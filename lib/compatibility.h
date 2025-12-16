@@ -25,20 +25,111 @@
     #include <sys/stat.h>
     #include <fcntl.h>
     #include <mman.h>
+    #include <stdarg.h>
+    #include <wchar.h>
+    #include <stdio.h>
+    #include <errno.h>
     
+    /* UTF-8 Wrappers for Windows */
+    static inline int win32_open_utf8(const char *path, int oflag, ...) {
+        wchar_t wpath[MAX_PATH];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) {
+            errno = ENOENT;
+            return -1;
+        }
+        int pmode = 0;
+        if (oflag & _O_CREAT) {
+            va_list ap;
+            va_start(ap, oflag);
+            pmode = va_arg(ap, int);
+            va_end(ap);
+        }
+        return _wopen(wpath, oflag, pmode);
+    }
+
+    static inline FILE *win32_fopen_utf8(const char *path, const char *mode) {
+        wchar_t wpath[MAX_PATH];
+        wchar_t wmode[10];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) return NULL;
+        if (MultiByteToWideChar(CP_UTF8, 0, mode, -1, wmode, 10) == 0) return NULL;
+        return _wfopen(wpath, wmode);
+    }
+
+    static inline int win32_mkdir_utf8(const char *path) {
+        wchar_t wpath[MAX_PATH];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) {
+             errno = ENOENT;
+             return -1;
+        }
+        return _wmkdir(wpath);
+    }
+
+    static inline int win32_stat_utf8(const char *path, struct _stat *buffer) {
+        wchar_t wpath[MAX_PATH];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) {
+             errno = ENOENT;
+             return -1;
+        }
+        return _wstat(wpath, buffer);
+    }
+    
+    static inline int win32_access_utf8(const char *path, int mode) {
+        wchar_t wpath[MAX_PATH];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) {
+             errno = ENOENT;
+             return -1;
+        }
+        return _waccess(wpath, mode);
+    }
+    
+    static inline int win32_unlink_utf8(const char *path) {
+        wchar_t wpath[MAX_PATH];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) {
+             errno = ENOENT;
+             return -1;
+        }
+        return _wunlink(wpath);
+    }
+    
+    static inline int win32_rmdir_utf8(const char *path) {
+        wchar_t wpath[MAX_PATH];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) {
+             errno = ENOENT;
+             return -1;
+        }
+        return _wrmdir(wpath);
+    }
+
+    static inline int win32_chdir_utf8(const char *path) {
+        wchar_t wpath[MAX_PATH];
+        if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH) == 0) {
+             errno = ENOENT;
+             return -1;
+        }
+        return _wchdir(wpath);
+    }
+
+    static inline char *win32_getcwd_utf8(char *buffer, int maxlen) {
+        wchar_t wpath[MAX_PATH];
+        if (_wgetcwd(wpath, MAX_PATH) == NULL) return NULL;
+        if (WideCharToMultiByte(CP_UTF8, 0, wpath, -1, buffer, maxlen, NULL, NULL) == 0) return NULL;
+        return buffer;
+    }
+
     /* Map POSIX functions to Windows equivalents */
-    #define open _open
+    #define open win32_open_utf8
+    #define fopen win32_fopen_utf8
     #define close _close
     #define read _read
     #define write _write
     #define lseek _lseek
-    #define access _access
-    #define unlink _unlink
-    #define rmdir _rmdir
-    #define mkdir(path, mode) _mkdir(path)
-    #define chdir _chdir
-    #define getcwd _getcwd
-    #define stat _stat
+    #define access win32_access_utf8
+    #define unlink win32_unlink_utf8
+    #define rmdir win32_rmdir_utf8
+    #define mkdir(path, mode) win32_mkdir_utf8(path)
+    #define chdir win32_chdir_utf8
+    #define getcwd win32_getcwd_utf8
+    #define stat(path, buf) win32_stat_utf8(path, (struct _stat*)(buf))
     #define fstat _fstat
     #define chmod _chmod
     #define ftruncate(fd, size) _chsize_s(fd, size)
