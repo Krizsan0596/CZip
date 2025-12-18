@@ -130,6 +130,23 @@ jobs:
     - name: Build
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
+    - name: Add ASAN runtime to PATH (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # Find Visual Studio installation
+        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+          -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+          -property installationPath
+        
+        # Add VC Tools bin directory to PATH (contains ASAN DLLs)
+        $vcToolsVersion = Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt"
+        $vcToolsVersion = $vcToolsVersion. Trim()
+        $asanPath = "$vsPath\VC\Tools\MSVC\$vcToolsVersion\bin\Hostx64\x64"
+        
+        echo $asanPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        Write-Host "Added to PATH: $asanPath"
+
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       env:
