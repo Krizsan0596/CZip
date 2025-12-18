@@ -14,11 +14,11 @@
  * Determines the length of an open file.
  * Returns the size on success or FILE_READ_ERROR on failure.
  */
-long get_file_size(FILE *f){
-    long current = ftell(f);
-    if (fseek(f, 0, SEEK_END) != 0) return FILE_READ_ERROR;
-    long size = ftell(f);
-    if (fseek(f, current, SEEK_SET) != 0) return FILE_READ_ERROR;
+long get_file_size(FILE *file){
+    long current = ftell(file);
+    if (fseek(file, 0, SEEK_END) != 0) return FILE_READ_ERROR;
+    long size = ftell(file);
+    if (fseek(file, current, SEEK_SET) != 0) return FILE_READ_ERROR;
     return size;
 } 
 
@@ -59,19 +59,19 @@ int read_raw(char file_name[], const uint8_t** data){
  * Returns the number of bytes read on success or a negative code on error.
  * Caller must free the returned buffer.
  */
-int read_from_file(FILE *f, uint8_t** data) {
-    if (f == NULL) return FILE_READ_ERROR;
+int read_from_file(FILE *file, uint8_t** data) {
+    if (file == NULL) return FILE_READ_ERROR;
     
-    long file_size = get_file_size(f);
+    long file_size = get_file_size(file);
     if (file_size < 0) return FILE_READ_ERROR;
     if (file_size == 0) return EMPTY_FILE;
     
-    rewind(f);
+    rewind(file);
     
     *data = malloc(file_size);
     if (*data == NULL) return MALLOC_ERROR;
     
-    size_t bytes_read = fread(*data, 1, file_size, f);
+    size_t bytes_read = fread(*data, 1, file_size, file);
     if (bytes_read != (size_t)file_size) {
         free(*data);
         *data = NULL;

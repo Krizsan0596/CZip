@@ -14,7 +14,7 @@
  * Recursively walks the directory and serializes every entry into the provided stream.
  * Returns the total size of all file payloads on success or a negative code on failure.
  */
-long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) {
+long archive_directory(char *path, int *archive_size, long *data_size, FILE *out_file) {
     DIR *directory = NULL;
     long dir_size = 0;
     long result = 0;
@@ -38,7 +38,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 break;
             }
             (*archive_size)++;
-            long bytes_written = serialize_item(&root, f);
+            long bytes_written = serialize_item(&root, out_file);
             if (bytes_written < 0) {
                 result = bytes_written;
                 free(root.dir_path);
@@ -84,7 +84,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                     break;
                 }
                 (*archive_size)++;
-                long bytes_written = serialize_item(&subdir, f);
+                long bytes_written = serialize_item(&subdir, out_file);
                 if (bytes_written < 0) {
                     result = bytes_written;
                     free(subdir.dir_path);
@@ -92,7 +92,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 }
                 *data_size += bytes_written;
                 free(subdir.dir_path);
-                long subdir_size = archive_directory(newpath, archive_size, data_size, f);
+                long subdir_size = archive_directory(newpath, archive_size, data_size, out_file);
                 if (subdir_size < 0) {
                     result = subdir_size;
                     break;
@@ -122,7 +122,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
                 }
                 dir_size += file.file_size;
                 (*archive_size)++;
-                long bytes_written = serialize_item(&file, f);
+                long bytes_written = serialize_item(&file, out_file);
                 if (bytes_written < 0) {
                     result = bytes_written;
                     current_item = file;
@@ -158,48 +158,48 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *f) 
  * Serializes an archived directory element into a buffer.
  * Returns the buffer size on success or a negative code on failure.
  */
-long serialize_item(Directory_item *item, FILE *f) {
+long serialize_item(Directory_item *item, FILE *out_file) {
     long data_size = 0;
     long item_size = sizeof(bool) + ((item->is_dir) ? (strlen(item->dir_path) + 1 + sizeof(int)) : (sizeof(size_t) + strlen(item->file_path) + 1 + item->file_size));
     
-    if (fwrite(&item_size, sizeof(long), 1, f) != 1) {
+    if (fwrite(&item_size, sizeof(long), 1, out_file) != 1) {
         return FILE_WRITE_ERROR;
     }
     data_size += sizeof(long);
     
-    if (fwrite(&item->is_dir, sizeof(bool), 1, f) != 1) {
+    if (fwrite(&item->is_dir, sizeof(bool), 1, out_file) != 1) {
         return FILE_WRITE_ERROR;
     }
     data_size += sizeof(bool);
     
     if (item->is_dir) {
-        if (fwrite(&item->perms, sizeof(int), 1, f) != 1) {
+        if (fwrite(&item->perms, sizeof(int), 1, out_file) != 1) {
             return FILE_WRITE_ERROR;
         }
         data_size += sizeof(int);
         
         convert_path(item->dir_path);
         size_t path_len = strlen(item->dir_path) + 1;
-        if (fwrite(item->dir_path, sizeof(char), path_len, f) != path_len) {
+        if (fwrite(item->dir_path, sizeof(char), path_len, out_file) != path_len) {
             return FILE_WRITE_ERROR;
         }
         data_size += path_len;
     }
     else {
-        if (fwrite(&item->file_size, sizeof(size_t), 1, f) != 1) {
+        if (fwrite(&item->file_size, sizeof(size_t), 1, out_file) != 1) {
             return FILE_WRITE_ERROR;
         }
         data_size += sizeof(size_t);
         
         convert_path(item->file_path);
         size_t path_len = strlen(item->file_path) + 1;
-        if (fwrite(item->file_path, sizeof(char), path_len, f) != path_len) {
+        if (fwrite(item->file_path, sizeof(char), path_len, out_file) != path_len) {
             return FILE_WRITE_ERROR;
         }
         data_size += path_len;
         
         if (item->file_size > 0) {
-            if (fwrite(item->file_data, sizeof(uint8_t), item->file_size, f) != (size_t)item->file_size) {
+            if (fwrite(item->file_data, sizeof(uint8_t), item->file_size, out_file) != (size_t)item->file_size) {
                 return FILE_WRITE_ERROR;
             }
             data_size += item->file_size;
@@ -238,12 +238,12 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
     }
     else {
         if (item->file_size == 0) {
-            FILE *f = fopen(full_path, "wb");
-            if (f == NULL) {
+            FILE *file = fopen(full_path, "wb");
+            if (file == NULL) {
                 free(full_path);
                 return FILE_WRITE_ERROR;
             }
-            fclose(f);
+            fclose(file);
         } else if (item->file_size > 0) {
             if (item->file_data == NULL) {
                 free(full_path);
@@ -275,22 +275,22 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
  * Reconstructs the archive array from the serialized buffer.
  * Returns the archive size on success or a negative code on failure.
  */
-long deserialize_item(Directory_item *item, FILE *f) {
+long deserialize_item(Directory_item *item, FILE *in_file) {
     long archive_size;
     long read_size = 0;
-    if (fread(&archive_size, sizeof(long), 1, f) != 1) {
-        if (feof(f)) return 0;
+    if (fread(&archive_size, sizeof(long), 1, in_file) != 1) {
+        if (feof(in_file)) return 0;
         return FILE_READ_ERROR;
     }
     read_size += sizeof(long);
     
-    if (fread(&item->is_dir, sizeof(bool), 1, f) != 1) {
+    if (fread(&item->is_dir, sizeof(bool), 1, in_file) != 1) {
         return FILE_READ_ERROR;
     }
     read_size += sizeof(bool);
     
     if (item->is_dir) {
-        if (fread(&item->perms, sizeof(int), 1, f) != 1) {
+        if (fread(&item->perms, sizeof(int), 1, in_file) != 1) {
             return FILE_READ_ERROR;
         }
         read_size += sizeof(int);
@@ -299,7 +299,7 @@ long deserialize_item(Directory_item *item, FILE *f) {
         item->dir_path = malloc(sizeof(char) * path_len);
         if (item->dir_path == NULL) return MALLOC_ERROR;
         
-        if (fread(item->dir_path, sizeof(char), path_len, f) != (size_t)path_len) {
+        if (fread(item->dir_path, sizeof(char), path_len, in_file) != (size_t)path_len) {
             free(item->dir_path);
             item->dir_path = NULL;
             return FILE_READ_ERROR;
@@ -307,7 +307,7 @@ long deserialize_item(Directory_item *item, FILE *f) {
         read_size += sizeof(char) * path_len;
     }
     else {
-        if (fread(&item->file_size, sizeof(size_t), 1, f) != 1) {
+        if (fread(&item->file_size, sizeof(size_t), 1, in_file) != 1) {
             return FILE_READ_ERROR;
         }
         read_size += sizeof(size_t);
@@ -316,7 +316,7 @@ long deserialize_item(Directory_item *item, FILE *f) {
         item->file_path = malloc(path_len);
         if (item->file_path == NULL) return MALLOC_ERROR;
         
-        if (fread(item->file_path, sizeof(char), path_len, f) != (size_t)path_len) {
+        if (fread(item->file_path, sizeof(char), path_len, in_file) != (size_t)path_len) {
             free(item->file_path);
             item->file_path = NULL;
             return FILE_READ_ERROR;
@@ -331,7 +331,7 @@ long deserialize_item(Directory_item *item, FILE *f) {
                 return MALLOC_ERROR;
             }
             
-            if (fread(item->file_data, sizeof(uint8_t), item->file_size, f) != (size_t)item->file_size) {
+            if (fread(item->file_data, sizeof(uint8_t), item->file_size, in_file) != (size_t)item->file_size) {
                 free(item->file_path);
                 free(item->file_data);
                 item->file_path = NULL;
