@@ -50,7 +50,7 @@ int read_raw(char file_name[], const uint8_t** data){
     void *map = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (map == MAP_FAILED) { close(fd); return FILE_READ_ERROR; }
     close(fd);
-    *data = (uint8_t*)map;
+    *data = map;
     return file_size;
 }
 
@@ -124,7 +124,7 @@ int write_raw(char *file_name, uint8_t **data, long file_size, bool overwrite){
         }
         
         close(fd);
-        *data = (uint8_t*)map;
+        *data = map;
         return file_size;
     }
     
@@ -202,7 +202,7 @@ int read_compressed(char file_name[], Compressed_file *compressed, const uint8_t
             ret = FILE_READ_ERROR;
             break;
         }
-        compressed->original_file = (char*)malloc(name_len + 1);
+        compressed->original_file = malloc(name_len + 1);
         if (compressed->original_file == NULL) {
             ret = MALLOC_ERROR;
             break;

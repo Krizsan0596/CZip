@@ -130,7 +130,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *out
                 }
                 *data_size += bytes_written;
                 free(file.file_path);
-                if (file.file_data != NULL) munmap((void*)file.file_data, file.file_size);
+                if (file.file_data != NULL) munmap(file.file_data, file.file_size);
             }
             free(newpath);
             newpath = NULL;
@@ -146,7 +146,7 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *out
             free(current_item.dir_path);
         } else {
             free(current_item.file_path);
-            if (current_item.file_data != NULL) munmap((void*)current_item.file_data, current_item.file_size);
+            if (current_item.file_data != NULL) munmap(current_item.file_data, current_item.file_size);
         }
     }
     free(newpath);
@@ -199,7 +199,7 @@ long serialize_item(Directory_item *item, FILE *out_file) {
         data_size += path_len;
         
         if (item->file_size > 0) {
-            if (fwrite(item->file_data, sizeof(uint8_t), item->file_size, out_file) != (size_t)item->file_size) {
+            if (fwrite(item->file_data, sizeof(uint8_t), item->file_size, out_file) != item->file_size) {
                 return FILE_WRITE_ERROR;
             }
             data_size += item->file_size;
@@ -299,7 +299,7 @@ long deserialize_item(Directory_item *item, FILE *in_file) {
         item->dir_path = malloc(sizeof(char) * path_len);
         if (item->dir_path == NULL) return MALLOC_ERROR;
         
-        if (fread(item->dir_path, sizeof(char), path_len, in_file) != (size_t)path_len) {
+        if (fread(item->dir_path, sizeof(char), path_len, in_file) != path_len) {
             free(item->dir_path);
             item->dir_path = NULL;
             return FILE_READ_ERROR;
@@ -316,7 +316,7 @@ long deserialize_item(Directory_item *item, FILE *in_file) {
         item->file_path = malloc(path_len);
         if (item->file_path == NULL) return MALLOC_ERROR;
         
-        if (fread(item->file_path, sizeof(char), path_len, in_file) != (size_t)path_len) {
+        if (fread(item->file_path, sizeof(char), path_len, in_file) != path_len) {
             free(item->file_path);
             item->file_path = NULL;
             return FILE_READ_ERROR;
@@ -331,7 +331,7 @@ long deserialize_item(Directory_item *item, FILE *in_file) {
                 return MALLOC_ERROR;
             }
             
-            if (fread(item->file_data, sizeof(uint8_t), item->file_size, in_file) != (size_t)item->file_size) {
+            if (fread(item->file_data, sizeof(uint8_t), item->file_size, in_file) != item->file_size) {
                 free(item->file_path);
                 free(item->file_data);
                 item->file_path = NULL;
