@@ -41,7 +41,7 @@ target_link_libraries(directory_test PRIVATE czip_core)
 add_test(NAME DirectoryTest COMMAND directory_test)
 
 IF (WIN32)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W0)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX /permissive-)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     include(FetchContent)
     
@@ -57,7 +57,6 @@ IF (WIN32)
     target_include_directories(dirent_static INTERFACE ${dirent_SOURCE_DIR}/include)
 
     # Fetch mman and compile as static library
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
     FetchContent_Declare(
         mman
         URL https://github.com/alitrack/mman-win32/archive/refs/heads/master.zip
@@ -77,6 +76,6 @@ IF (WIN32)
     target_include_directories(czip_core PUBLIC ${WIN_EXTRA_INCLUDES})
     target_link_libraries(czip_core PUBLIC dirent_static mman_static)
 ELSE()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Werror -g)
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Werror -g)
     target_link_libraries(czip_core PUBLIC m)
 ENDIF()
