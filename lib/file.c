@@ -10,18 +10,6 @@
 
 
 /*
- * Determines the length of an open file.
- * Returns the size on success or FILE_READ_ERROR on failure.
- */
-long get_file_size(FILE *file){
-    long current = ftell(file);
-    if (fseek(file, 0, SEEK_END) != 0) return FILE_READ_ERROR;
-    long size = ftell(file);
-    if (fseek(file, current, SEEK_SET) != 0) return FILE_READ_ERROR;
-    return size;
-} 
-
-/*
  * Converts the byte count to a larger unit while updating the supplied size.
  * Returns the abbreviation of the chosen unit.
  */
@@ -39,45 +27,27 @@ const char* get_unit(size_t *bytes) {
  * Reads the file into memory; the caller supplies the pointer.
  * Returns the number of bytes read on success or a negative code on error.
  */
-int read_raw(char file_name[], const uint8_t** data){
+int64_t read_raw(char file_name[], const uint8_t** data){
     int fd = open(file_name, O_RDONLY);
     if (fd == -1) return FILE_READ_ERROR;
-    struct stat st;
-    if (fstat(fd, &st) == -1) { close(fd); return FILE_READ_ERROR; }
-    long file_size = st.st_size;
-    if (file_size == 0) { close(fd); return EMPTY_FILE; }
-    void *map = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (map == MAP_FAILED) { close(fd); return FILE_READ_ERROR; }
+    int64_t res = read_raw_from_fd(fd, data);
     close(fd);
-    *data = map;
-    return file_size;
+    return res;
 }
 
 /*
- * Reads data from an open FILE* into an allocated buffer.
+ * Reads from a file descriptor into memory (mmap).
  * Returns the number of bytes read on success or a negative code on error.
- * Caller must free the returned buffer.
  */
-int read_from_file(FILE *file, uint8_t** data) {
-    if (file == NULL) return FILE_READ_ERROR;
-    
-    long file_size = get_file_size(file);
-    if (file_size < 0) return FILE_READ_ERROR;
+int64_t read_raw_from_fd(int fd, const uint8_t** data){
+    struct stat st;
+    if (fstat(fd, &st) == -1) return FILE_READ_ERROR;
+    uint64_t file_size = st.st_size;
     if (file_size == 0) return EMPTY_FILE;
-    
-    rewind(file);
-    
-    *data = malloc(file_size);
-    if (*data == NULL) return MALLOC_ERROR;
-    
-    size_t bytes_read = fread(*data, 1, file_size, file);
-    if (bytes_read != (size_t)file_size) {
-        free(*data);
-        *data = NULL;
-        return FILE_READ_ERROR;
-    }
-    
-    return file_size;
+    void *map = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (map == MAP_FAILED) return FILE_READ_ERROR;
+    *data = map;
+    return (int64_t)file_size;
 }
 
 /*
@@ -85,10 +55,9 @@ int read_from_file(FILE *file, uint8_t** data) {
  * Returns the file size on success or negative error codes on failure.
  * Caller must munmap the returned pointer.
  */
-int write_raw(char *file_name, uint8_t **data, long file_size, bool overwrite){
+int64_t write_raw(char *file_name, uint8_t **data, uint64_t file_size, bool overwrite){
     int fd = -1;
-    void *map = NULL;
-    int ret = SUCCESS;
+    int64_t ret = SUCCESS;
     
     while (true) {
         if (!overwrite && access(file_name, F_OK) == 0) {
@@ -116,15 +85,8 @@ int write_raw(char *file_name, uint8_t **data, long file_size, bool overwrite){
             break;
         }
         
-        map = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        if (map == MAP_FAILED) {
-            ret = FILE_WRITE_ERROR;
-            break;
-        }
-        
-        close(fd);
-        *data = map;
-        return file_size;
+        ret = write_raw_to_fd(fd, data, file_size);
+        break;
     }
     
     if (fd != -1) {
@@ -135,15 +97,27 @@ int write_raw(char *file_name, uint8_t **data, long file_size, bool overwrite){
 }
 
 /*
+ * Memory maps an existing file descriptor for writing.
+ * Returns the file size on success or negative error codes on failure.
+ * Caller must munmap the returned pointer.
+ */
+int64_t write_raw_to_fd(int fd, uint8_t **data, uint64_t file_size){
+    void *map = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED) return FILE_WRITE_ERROR;
+    *data = map;
+    return (int64_t)file_size;
+}
+
+/*
  * Reads the stored Compressed_file format and verifies the required data is present.
  * File content is mmapped; the Huffman tree and compressed data pointers reference that mapping,
  * while file names are duplicated onto the heap.
  * Caller must munmap using the returned mmap_ptr and size (returned as function result).
  */
-int read_compressed(char file_name[], Compressed_file *compressed, const uint8_t **mmap_ptr){
-    int ret = SUCCESS;
+int64_t read_compressed(char file_name[], Compressed_file *compressed, const uint8_t **mmap_ptr){
+    int64_t ret = SUCCESS;
     const uint8_t* data = NULL;
-    long file_size = read_raw(file_name, &data);
+    int64_t file_size = read_raw(file_name, &data);
     
     if (file_size < 0) {
         return file_size;
@@ -184,17 +158,17 @@ int read_compressed(char file_name[], Compressed_file *compressed, const uint8_t
         compressed->original_size = *(size_t*)current;
         current += sizeof(size_t);
 
-        long name_len = 0;
-        if (current + sizeof(long) > end) {
+        uint64_t name_len = 0;
+        if (current + sizeof(uint64_t) > end) {
             ret = FILE_READ_ERROR;
             break;
         }
-        name_len = *(long*)current;
-        current += sizeof(long);
+        name_len = *(uint64_t*)current;
+        current += sizeof(uint64_t);
         
-        if (name_len < 0) {
-            ret = FILE_MAGIC_ERROR;
-            break;
+        if (name_len > (uint64_t)(end - current)) {
+             ret = FILE_READ_ERROR;
+             break;
         }
 
         if (current + name_len > end) {
@@ -265,14 +239,14 @@ int read_compressed(char file_name[], Compressed_file *compressed, const uint8_t
  * Serializes the provided structure and writes it directly into a newly mmapped output file.
  * Prompts for overwrite (unless forced) and persists the data with msync before closing.
  */
-int write_compressed(Compressed_file *compressed, bool overwrite) {
+int64_t write_compressed(Compressed_file *compressed, bool overwrite) {
     size_t name_len = strlen(compressed->original_file);
-    long file_size = (sizeof(char) * 4) + sizeof(bool) + sizeof(size_t) + sizeof(long) +
+    uint64_t file_size = (sizeof(char) * 4) + sizeof(bool) + sizeof(size_t) + sizeof(uint64_t) +
                      name_len * sizeof(char) + sizeof(uint64_t) + compressed->tree_size +
                      sizeof(uint64_t) + (compressed->data_size + 7) / 8;
 
     uint8_t *map = NULL;
-    int ret = write_raw(compressed->file_name, &map, file_size, overwrite);
+    int64_t ret = write_raw(compressed->file_name, &map, file_size, overwrite);
     if (ret < 0) {
         return ret;
     }
@@ -286,8 +260,9 @@ int write_compressed(Compressed_file *compressed, bool overwrite) {
     data += sizeof(bool);
     memcpy(data, &compressed->original_size, sizeof(size_t));
     data += sizeof(size_t);
-    memcpy(data, &name_len, sizeof(long));
-    data += sizeof(long);
+    uint64_t name_len_u64 = (uint64_t)name_len;
+    memcpy(data, &name_len_u64, sizeof(uint64_t));
+    data += sizeof(uint64_t);
     memcpy(data, compressed->original_file, name_len);
     data += name_len;
     memcpy(data, &compressed->tree_size, sizeof(uint64_t));
@@ -298,12 +273,12 @@ int write_compressed(Compressed_file *compressed, bool overwrite) {
     data += sizeof(uint64_t);
     memcpy(data, compressed->compressed_data, (compressed->data_size + 7) / 8);
 
-    if (msync(map, file_size, MS_SYNC) == -1) {
+    if (msync(map, (size_t)file_size, MS_SYNC) == -1) {
         ret = FILE_WRITE_ERROR;
     } else {
-        ret = file_size;
+        ret = (int64_t)file_size;
     }
 
-    munmap(map, file_size);
+    munmap(map, (size_t)file_size);
     return ret;
 }

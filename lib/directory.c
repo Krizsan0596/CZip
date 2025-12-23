@@ -11,15 +11,17 @@
 #include <limits.h>
 
 /*
- * Recursively walks the directory and serializes every entry into the provided stream.
- * Returns the total size of all file payloads on success or a negative code on failure.
+ * Recursively walks the directory and serializes every entry.
+ * If out_data is NULL, it only calculates and returns the total serialized size.
+ * If out_data is not NULL, it serializes entries into the buffer.
  */
-long archive_directory(char *path, int *archive_size, long *data_size, FILE *out_file) {
+int64_t archive_directory(char *path, int *archive_size, int64_t *data_size, uint8_t *out_data) {
     DIR *directory = NULL;
-    long dir_size = 0;
-    long result = 0;
+    int64_t dir_size = 0;
+    int64_t result = 0;
     char *newpath = NULL;
     Directory_item current_item = {0};
+    uint8_t *current_ptr = out_data;
     
     while (true) {
         /* On the first call, add the root directory to the archive so relative paths are preserved. */
@@ -38,13 +40,14 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *out
                 break;
             }
             (*archive_size)++;
-            long bytes_written = serialize_item(&root, out_file);
+            int64_t bytes_written = serialize_item(&root, current_ptr);
             if (bytes_written < 0) {
                 result = bytes_written;
                 free(root.dir_path);
                 break;
             }
             *data_size += bytes_written;
+            if (current_ptr) current_ptr += bytes_written;
             free(root.dir_path);
         }
 
@@ -84,20 +87,24 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *out
                     break;
                 }
                 (*archive_size)++;
-                long bytes_written = serialize_item(&subdir, out_file);
+                int64_t bytes_written = serialize_item(&subdir, current_ptr);
                 if (bytes_written < 0) {
                     result = bytes_written;
                     free(subdir.dir_path);
                     break;
                 }
                 *data_size += bytes_written;
+                if (current_ptr) current_ptr += bytes_written;
                 free(subdir.dir_path);
-                long subdir_size = archive_directory(newpath, archive_size, data_size, out_file);
+                int64_t subdir_size = archive_directory(newpath, archive_size, data_size, current_ptr);
                 if (subdir_size < 0) {
                     result = subdir_size;
                     break;
                 }
                 dir_size += subdir_size;
+                if (current_ptr) {
+                    current_ptr = out_data + *data_size;
+                }
             } 
             else if (S_ISREG(st.st_mode)) {
                 Directory_item file = {0};
@@ -122,13 +129,14 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *out
                 }
                 dir_size += file.file_size;
                 (*archive_size)++;
-                long bytes_written = serialize_item(&file, out_file);
+                int64_t bytes_written = serialize_item(&file, current_ptr);
                 if (bytes_written < 0) {
                     result = bytes_written;
                     current_item = file;
                     break;
                 }
                 *data_size += bytes_written;
+                if (current_ptr) current_ptr += bytes_written;
                 free(file.file_path);
                 if (file.file_data != NULL) munmap(file.file_data, file.file_size);
             }
@@ -156,62 +164,47 @@ long archive_directory(char *path, int *archive_size, long *data_size, FILE *out
 
 /*
  * Serializes an archived directory element into a buffer.
- * Returns the buffer size on success or a negative code on failure.
+ * If out_data is NULL, it only calculates and returns the item's serialized size.
  */
-long serialize_item(Directory_item *item, FILE *out_file) {
-    long data_size = 0;
-    long item_size = sizeof(bool) + ((item->is_dir) ? (strlen(item->dir_path) + 1 + sizeof(int)) : (sizeof(size_t) + strlen(item->file_path) + 1 + item->file_size));
-    
-    if (fwrite(&item_size, sizeof(long), 1, out_file) != 1) {
-        return FILE_WRITE_ERROR;
-    }
-    data_size += sizeof(long);
-    
-    if (fwrite(&item->is_dir, sizeof(bool), 1, out_file) != 1) {
-        return FILE_WRITE_ERROR;
-    }
-    data_size += sizeof(bool);
-    
+int64_t serialize_item(Directory_item *item, uint8_t *out_data) {
+    size_t path_len = item->is_dir ? (strlen(item->dir_path) + 1) : (strlen(item->file_path) + 1);
+    int64_t item_size = (int64_t)sizeof(bool) + ((item->is_dir) ? (int64_t)(sizeof(int) + path_len) : (int64_t)(sizeof(size_t) + path_len + item->file_size));
+    int64_t total_size = (int64_t)sizeof(int64_t) + item_size;
+
+    if (out_data == NULL) return total_size;
+
+    uint8_t *ptr = out_data;
+    memcpy(ptr, &item_size, sizeof(int64_t));
+    ptr += sizeof(int64_t);
+
+    memcpy(ptr, &item->is_dir, sizeof(bool));
+    ptr += sizeof(bool);
+
     if (item->is_dir) {
-        if (fwrite(&item->perms, sizeof(int), 1, out_file) != 1) {
-            return FILE_WRITE_ERROR;
-        }
-        data_size += sizeof(int);
-        
+        memcpy(ptr, &item->perms, sizeof(int));
+        ptr += sizeof(int);
+
         convert_path(item->dir_path);
-        size_t path_len = strlen(item->dir_path) + 1;
-        if (fwrite(item->dir_path, sizeof(char), path_len, out_file) != path_len) {
-            return FILE_WRITE_ERROR;
-        }
-        data_size += path_len;
+        memcpy(ptr, item->dir_path, path_len);
     }
     else {
-        if (fwrite(&item->file_size, sizeof(size_t), 1, out_file) != 1) {
-            return FILE_WRITE_ERROR;
-        }
-        data_size += sizeof(size_t);
-        
+        memcpy(ptr, &item->file_size, sizeof(size_t));
+        ptr += sizeof(size_t);
+
         convert_path(item->file_path);
-        size_t path_len = strlen(item->file_path) + 1;
-        if (fwrite(item->file_path, sizeof(char), path_len, out_file) != path_len) {
-            return FILE_WRITE_ERROR;
-        }
-        data_size += path_len;
-        
+        memcpy(ptr, item->file_path, path_len);
+        ptr += path_len;
+
         if (item->file_size > 0) {
-            if (fwrite(item->file_data, sizeof(uint8_t), item->file_size, out_file) != item->file_size) {
-                return FILE_WRITE_ERROR;
-            }
-            data_size += item->file_size;
+            memcpy(ptr, item->file_data, item->file_size);
         }
     }
-    return data_size;
+    return total_size;
 }
 
 
 /*
  * Extracts the archived directory to the given path, creating directories and files as needed.
- * Returns 0 on success or a negative code on failure.
  */
 int extract_directory(char *path, Directory_item *item, bool force, bool no_preserve_perms) {
     if (path == NULL) path = ".";
@@ -273,97 +266,58 @@ int extract_directory(char *path, Directory_item *item, bool force, bool no_pres
 
 /*
  * Reconstructs the archive array from the serialized buffer.
- * Returns the archive size on success or a negative code on failure.
  */
-long deserialize_item(Directory_item *item, FILE *in_file) {
-    long archive_size;
-    long read_size = 0;
-    if (fread(&archive_size, sizeof(long), 1, in_file) != 1) {
-        if (feof(in_file)) return 0;
-        return FILE_READ_ERROR;
-    }
-    read_size += sizeof(long);
+int64_t deserialize_item(Directory_item *item, const uint8_t *in_data, int64_t remaining_size) {
+    if (remaining_size < (int64_t)sizeof(int64_t)) return 0;
     
-    if (fread(&item->is_dir, sizeof(bool), 1, in_file) != 1) {
-        return FILE_READ_ERROR;
-    }
-    read_size += sizeof(bool);
-    
+    int64_t item_size;
+    const uint8_t *ptr = in_data;
+    memcpy(&item_size, ptr, sizeof(int64_t));
+    ptr += sizeof(int64_t);
+
+    if (remaining_size < (int64_t)sizeof(int64_t) + item_size) return FILE_READ_ERROR;
+
+    memcpy(&item->is_dir, ptr, sizeof(bool));
+    ptr += sizeof(bool);
+
     if (item->is_dir) {
-        if (fread(&item->perms, sizeof(int), 1, in_file) != 1) {
-            return FILE_READ_ERROR;
-        }
-        read_size += sizeof(int);
-        
-        size_t path_len = archive_size - sizeof(bool) - sizeof(int);
-        item->dir_path = malloc(sizeof(char) * path_len);
+        memcpy(&item->perms, ptr, sizeof(int));
+        ptr += sizeof(int);
+
+        size_t path_len = item_size - sizeof(bool) - sizeof(int);
+        item->dir_path = malloc(path_len);
         if (item->dir_path == NULL) return MALLOC_ERROR;
-        
-        if (fread(item->dir_path, sizeof(char), path_len, in_file) != path_len) {
-            free(item->dir_path);
-            item->dir_path = NULL;
-            return FILE_READ_ERROR;
-        }
-        read_size += sizeof(char) * path_len;
+        memcpy(item->dir_path, ptr, path_len);
     }
     else {
-        if (fread(&item->file_size, sizeof(size_t), 1, in_file) != 1) {
-            return FILE_READ_ERROR;
-        }
-        read_size += sizeof(size_t);
-        
-        size_t path_len = archive_size - sizeof(bool) - sizeof(size_t) - item->file_size;
+        memcpy(&item->file_size, ptr, sizeof(size_t));
+        ptr += sizeof(size_t);
+
+        size_t path_len = item_size - sizeof(bool) - sizeof(size_t) - item->file_size;
         item->file_path = malloc(path_len);
         if (item->file_path == NULL) return MALLOC_ERROR;
-        
-        if (fread(item->file_path, sizeof(char), path_len, in_file) != path_len) {
-            free(item->file_path);
-            item->file_path = NULL;
-            return FILE_READ_ERROR;
-        }
-        read_size += sizeof(char) * path_len;
-        
+        memcpy(item->file_path, ptr, path_len);
+        ptr += path_len;
+
         if (item->file_size > 0) {
             item->file_data = malloc(item->file_size);
             if (item->file_data == NULL) {
                 free(item->file_path);
-                item->file_path = NULL;
                 return MALLOC_ERROR;
             }
-            
-            if (fread(item->file_data, sizeof(uint8_t), item->file_size, in_file) != item->file_size) {
-                free(item->file_path);
-                free(item->file_data);
-                item->file_path = NULL;
-                item->file_data = NULL;
-                return FILE_READ_ERROR;
-            }
-            read_size += sizeof(uint8_t) * item->file_size;
+            memcpy(item->file_data, ptr, item->file_size);
         } else {
             item->file_data = NULL;
         }
     }
-    if (read_size != archive_size + sizeof(long)) {
-        if (item->is_dir) {
-            free(item->dir_path);
-            item->dir_path = NULL;
-        } else {
-            free(item->file_path);
-            free(item->file_data);
-            item->file_path = NULL;
-            item->file_data = NULL;
-        }
-        return FILE_READ_ERROR;
-    }
-    return archive_size + sizeof(long);
+    return (int64_t)sizeof(int64_t) + item_size;
 }
 
 /*
- * Prepares a directory for compression.
- * Walks the directory, archives it, and serializes the data into a temporary file.
- * Returns a FILE* on success or NULL on failure.
+ * Prepares a directory for compression by serializing it into a memory-mapped temporary file.
+ * Returns the file descriptor on success or a negative error code.
  */
-FILE* prepare_directory(char *input_file, int *directory_size) {
+int prepare_directory(char *input_file, int *directory_size, uint64_t *total_size) {
     char current_path[PATH_MAX];
     char *sep = strrchr(input_file, '/');
 #ifdef _WIN32
@@ -375,8 +329,8 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
     char *parent_dir = NULL;
     char *file_name = NULL;
     int archive_size = 0;
-    long data_len = 0;
-    FILE *temp_file = NULL;
+    int64_t data_len = 0;
+    int fd = -1;
     
     while (true) {
         if (getcwd(current_path, sizeof(current_path)) == NULL) {
@@ -384,46 +338,26 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
             break;
         }
         
-        /* For external paths, switch to the parent directory so stored paths remain relative. */
         if (sep != NULL) {
             if (sep == input_file) {
                 parent_dir = strdup("/");
-                if (parent_dir == NULL) {
-                    break;
-                }
             }
             else {
                 int parent_dir_len = sep - input_file;
                 parent_dir = malloc(parent_dir_len + 1);
-                if (parent_dir == NULL) {
-                    break;
-                }
-                snprintf(parent_dir, parent_dir_len + 1, "%.*s", parent_dir_len, input_file);
+                if (parent_dir != NULL) snprintf(parent_dir, parent_dir_len + 1, "%.*s", parent_dir_len, input_file);
             }
+            if (parent_dir == NULL) break;
             file_name = strdup(sep + 1);
-            if (file_name == NULL) {
-                break;
-            }
+            if (file_name == NULL) break;
             if (chdir(parent_dir) != 0) {
                 fputs("Failed to enter the directory.\n", stderr);
                 break;
             }
         }
         
-        /* Create temporary file using tmpfile() */
-        temp_file = tmpfile();
-        if (temp_file == NULL) {
-            fputs("Failed to create the temp file.\n", stderr);
-            if (sep != NULL) {
-                if (chdir(current_path) != 0) {
-                    fputs("Failed to exit the directory.\n", stderr);
-                }
-            }
-            break;
-        }
-        
-        long dir_size = archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &data_len, temp_file);
-        
+        // Step 1: Calculate size
+        int64_t dir_size = archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &data_len, NULL);
         if (dir_size < 0) {
             if (dir_size == MALLOC_ERROR) {
                 fputs("Failed to allocate memory while archiving the directory.\n", stderr);
@@ -434,114 +368,119 @@ FILE* prepare_directory(char *input_file, int *directory_size) {
             } else {
                 fputs("Failed to archive the directory.\n", stderr);
             }
-            /* Return to the original directory even when an error occurs. */
-            if (sep != NULL) {
-                if (chdir(current_path) != 0) {
-                    fputs("Failed to exit the directory.\n", stderr);
-                }
-            }
-            fclose(temp_file);
-            temp_file = NULL;
+            if (sep != NULL) chdir(current_path);
+            fd = (int)dir_size;
             break;
         }
+
+        // Step 2: Create mmapable tmpfile
+        fd = create_mmapable_tmpfile((size_t)data_len);
+        if (fd < 0) {
+            fputs("Failed to create the temp file.\n", stderr);
+            if (sep != NULL) chdir(current_path);
+            break;
+        }
+
+        // Step 3: Map and serialize
+        uint8_t *map = NULL;
+        int64_t map_res = write_raw_to_fd(fd, &map, (uint64_t)data_len);
+        if (map_res < 0) {
+            fputs("Failed to map the temp file for writing.\n", stderr);
+            close(fd);
+            fd = (int)map_res;
+            if (sep != NULL) chdir(current_path);
+            break;
+        }
+
+        archive_size = 0;
+        int64_t final_data_len = 0;
+        archive_directory((file_name != NULL) ? file_name : input_file, &archive_size, &final_data_len, map);
         
+        if (msync(map, (size_t)data_len, MS_SYNC) == -1) {
+            fputs("Failed to sync the temp file.\n", stderr);
+            munmap(map, (size_t)data_len);
+            close(fd);
+            fd = FILE_WRITE_ERROR;
+            if (sep != NULL) chdir(current_path);
+            break;
+        }
+        munmap(map, (size_t)data_len);
+
         *directory_size = (int)dir_size;
+        *total_size = (uint64_t)data_len;
         
-        /* Return to the original directory. */
         if (sep != NULL) {
             if (chdir(current_path) != 0) {
                 fputs("Failed to exit the directory.\n", stderr);
-                fclose(temp_file);
-                temp_file = NULL;
+                close(fd);
+                fd = DIRECTORY_ERROR;
                 break;
             }
         }
-        
-        /* Rewind the file pointer to the beginning for reading */
-        rewind(temp_file);
         break;
     }
     
     free(parent_dir);
     free(file_name);
-    
-    return temp_file;
+    return fd;
 }
 
 /*
- * Handles directory processing for extraction.
- * Deserializes and extracts the archived directories.
- * Returns 0 on success or a negative value on failure.
+ * Handles directory processing for extraction from a memory-mapped buffer.
  */
-int restore_directory(FILE *temp_file, char *output_file, bool force, bool no_preserve_perms) {
-    int res = 0;
-    Directory_item item = {0};
+int restore_directory(const uint8_t *temp_data, int64_t temp_size, char *output_file, bool force, bool no_preserve_perms) {
+    if (temp_data == NULL) {
+        fputs("Invalid temp file data.\n", stderr);
+        return FILE_READ_ERROR;
+    }
     
-    while (true) {
-        if (temp_file == NULL) {
-            fputs("Invalid temp file.\n", stderr);
-            res = FILE_READ_ERROR;
-            break;
+    if (output_file != NULL) {
+        if (mkdir(output_file, DIR_MODE) != 0 && errno != EEXIST) {
+            fputs("Failed to create the output directory.\n", stderr);
+            return MKDIR_ERROR;
         }
-        
-        /* Rewind to the beginning of the temp file */
-        rewind(temp_file);
-        
-        if (output_file != NULL) {
-            if (mkdir(output_file, DIR_MODE) != 0 && errno != EEXIST) {
-                fputs("Failed to create the output directory.\n", stderr);
-                res = MKDIR_ERROR;
-                break;
-            }
-        }
-        
-        while (true) {
-            item = (Directory_item){0};
-            long bytes_read = deserialize_item(&item, temp_file);
-            if (bytes_read < 0) {
-                if (bytes_read == MALLOC_ERROR) {
-                    fputs("Failed to allocate memory while reading.\n", stderr);
-                } else {
-                    fputs("Failed to read the compressed directory.\n", stderr);
-                }
-                res = bytes_read;
-                // Free any memory allocated in item before breaking
-                if (item.is_dir) {
-                    free(item.dir_path);
-                } else {
-                    free(item.file_path);
-                    free(item.file_data);
-                }
-                break;
-            }
-            if (bytes_read == 0 || feof(temp_file)) break;
-            
-            int ret = extract_directory(output_file, &item, force, no_preserve_perms);
-            
-            if (item.is_dir) {
-                free(item.dir_path);
+    }
+    
+    int64_t offset = 0;
+    while (offset < temp_size) {
+        Directory_item item = {0};
+        int64_t bytes_read = deserialize_item(&item, temp_data + offset, temp_size - offset);
+        if (bytes_read < 0) {
+             if (bytes_read == MALLOC_ERROR) {
+                fputs("Failed to allocate memory while reading.\n", stderr);
             } else {
+                fputs("Failed to read the compressed directory.\n", stderr);
+            }
+            if (item.is_dir) free(item.dir_path);
+            else {
                 free(item.file_path);
                 free(item.file_data);
             }
-            
-            if (ret != 0) {
-                if (ret == MKDIR_ERROR) {
-                    fputs("Failed to create a directory during extraction.\n", stderr);
-                } else if (ret == FILE_WRITE_ERROR) {
-                    fputs("Failed to write a file during extraction.\n", stderr);
-                } else if (ret == MALLOC_ERROR) {
-                    fputs("Failed to allocate memory.\n", stderr);
-                } else {
-                    fputs("Failed to extract the directory.\n", stderr);
-                }
-                res = ret;
-                break;
-            }
+            return (int)bytes_read;
+        }
+        if (bytes_read == 0) break;
+        
+        int ret = extract_directory(output_file, &item, force, no_preserve_perms);
+        
+        if (item.is_dir) free(item.dir_path);
+        else {
+            free(item.file_path);
+            free(item.file_data);
         }
         
-        break;
+        if (ret != 0) {
+            if (ret == MKDIR_ERROR) {
+                fputs("Failed to create a directory during extraction.\n", stderr);
+            } else if (ret == FILE_WRITE_ERROR) {
+                fputs("Failed to write a file during extraction.\n", stderr);
+            } else if (ret == MALLOC_ERROR) {
+                fputs("Failed to allocate memory.\n", stderr);
+            } else {
+                fputs("Failed to extract the directory.\n", stderr);
+            }
+            return ret;
+        }
+        offset += bytes_read;
     }
-    
-    return res;
+    return SUCCESS;
 }

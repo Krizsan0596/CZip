@@ -91,18 +91,22 @@ static int invoke_run_compression(Arguments args) {
 
     if (args.directory) {
         int directory_size_int = 0;
-        FILE *temp_file = prepare_directory(args.input_file, &directory_size_int);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(args.input_file, &directory_size_int, &total_size);
+        if (fd < 0) {
             return FILE_WRITE_ERROR;
         }
         directory_size = directory_size_int;
-        int read_res = read_from_file(temp_file, &allocated_data);
-        fclose(temp_file);
+        
+        int64_t read_res = read_raw_from_fd(fd, (const uint8_t**)&allocated_data);
+        close(fd);
+        
         if (read_res < 0) {
-            return read_res;
+            return (int)read_res;
         }
         data = allocated_data;
-        data_len = read_res;
+        data_len = (long)read_res;
+        use_mmap = true;
     } else {
         int read_res = read_raw(args.input_file, &data);
         if (read_res < 0) {

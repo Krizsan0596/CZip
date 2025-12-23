@@ -1,6 +1,7 @@
 #ifndef COMPATIBILITY_H
 #define COMPATIBILITY_H
 
+#include "data_types.h"
 
 #ifdef _WIN32
     #define PROGRAM_USAGE_TEXT \
@@ -162,8 +163,40 @@
             path++;
         }
     }
-    
+    static inline int create_mmapable_tmpfile(size_t size) {
+        char temp_path[MAX_PATH];
+        char temp_file[MAX_PATH];
+        if (GetTempPath(MAX_PATH, temp_path) == 0) return FILE_WRITE_ERROR;
+        if (GetTempFileName(temp_path, "TM", 0, temp_file) == 0) return FILE_WRITE_ERROR;
+
+        HANDLE hFile = CreateFile(temp_file, 
+            GENERIC_READ | GENERIC_WRITE, 0, NULL, 
+            CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) return FILE_WRITE_ERROR;
+        
+        // Set file size
+        LARGE_INTEGER li;
+        li.QuadPart = size;
+        if (!SetFilePointerEx(hFile, li, NULL, FILE_BEGIN)) {
+            CloseHandle(hFile);
+            return FILE_WRITE_ERROR;
+        }
+        if (!SetEndOfFile(hFile)) {
+            CloseHandle(hFile);
+            return FILE_WRITE_ERROR;
+        }
+
+        // Wrap the HANDLE in a file descriptor so the rest of the code can
+        // use POSIX-style file descriptors and close().
+        int fd = _open_osfhandle((intptr_t)hFile, _O_RDWR);
+        if (fd == -1) {
+            CloseHandle(hFile);
+            return FILE_WRITE_ERROR;
+        }
+        return fd;
+    }
 #else
+    #include <stdlib.h>
     #define PROGRAM_USAGE_TEXT \
         "Huffman encoder\n" \
         "Usage: %s -c|-x [-o OUTPUT_FILE] INPUT_FILE\n" \
@@ -187,8 +220,20 @@
     static inline void convert_path(char *path) {
         (void)path;
     }
+    static inline int create_mmapable_tmpfile(size_t size) {
+        char tmp_template[] = "/tmp/mmap_tmp_XXXXXX";
+        int fd = mkstemp(tmp_template);
+        if (fd == -1) return FILE_WRITE_ERROR;
+
+        unlink(tmp_template);
+
+        if (ftruncate(fd, size) == -1) {
+            close(fd);
+            return FILE_WRITE_ERROR;
+        }
+        return fd;
+    }
     #define FILE_MODE 0666
     #define DIR_MODE  0777
 #endif
-
 #endif /* COMPATIBILITY_H */

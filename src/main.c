@@ -112,7 +112,7 @@ int parse_arguments(int argc, char* argv[], Arguments *args) {
 /*
  * After processing options, starts compression or decompression and returns the error code.
  */
-int main(int argc, char* argv[]){
+int main(int argc, char* argv[]) {
     Arguments args;
     int parse_result = parse_arguments(argc, argv, &args);
     if (parse_result == HELP_REQUESTED) {
@@ -152,21 +152,24 @@ int main(int argc, char* argv[]){
     if (args.compress_mode) {
         const uint8_t *data = NULL;
         uint8_t *allocated_data = NULL;
-        long data_len = 0;
-        long directory_size = 0;
+        uint64_t data_len = 0;
+        uint64_t directory_size = 0;
         int directory_size_int = 0;
-        FILE *temp_file = NULL;
+        int fd = -1;
         bool use_mmap = false;
 
         if (args.directory) {
-            temp_file = prepare_directory(args.input_file, &directory_size_int);
-            if (temp_file == NULL) {
-                fputs("Failed to prepare the directory.\n", stderr);
+            uint64_t total_size = 0;
+            fd = prepare_directory(args.input_file, &directory_size_int, &total_size);
+            if (fd < 0) {
+                // prepare_directory already prints errors
                 return FILE_WRITE_ERROR;
             }
             directory_size = directory_size_int;
-            int read_res = read_from_file(temp_file, &allocated_data);
-            fclose(temp_file);
+            
+            int64_t read_res = read_raw_from_fd(fd, &data);
+            close(fd);            
+
             if (read_res < 0) {
                 if (read_res == MALLOC_ERROR) {
                     fputs("Failed to allocate memory.\n", stderr);
@@ -175,10 +178,10 @@ int main(int argc, char* argv[]){
                 }
                 return read_res;
             }
-            data = allocated_data;
             data_len = read_res;
+            use_mmap = true;
         } else {
-            int read_res = read_raw(args.input_file, &data);
+            int64_t read_res = read_raw(args.input_file, &data);
             if (read_res < 0) {
                 if (read_res == EMPTY_FILE) {
                     fputs("The file (", stderr);
@@ -211,7 +214,7 @@ int main(int argc, char* argv[]){
         return compress_res;
     } else if (args.extract_mode) {
         uint8_t *raw_data = NULL;
-        long raw_size = 0;
+        uint64_t raw_size = 0;
         bool is_dir = false;
         char *original_name = NULL;
 
@@ -224,35 +227,31 @@ int main(int argc, char* argv[]){
 
         int res = 0;
         if (is_dir) {
-            FILE *temp_file = tmpfile();
-            if (temp_file == NULL) {
+            int fd = create_mmapable_tmpfile((size_t)raw_size);
+            if (fd < 0) {
                 fputs("Failed to create temporary file.\n", stderr);
                 free(raw_data);
                 free(original_name);
                 return FILE_WRITE_ERROR;
             }
-            if (fwrite(raw_data, 1, raw_size, temp_file) != (size_t)raw_size) {
-                fputs("Failed to write the serialized data.\n", stderr);
-                fclose(temp_file);
+            
+            uint8_t *map = NULL;
+            int64_t map_res = write_raw_to_fd(fd, &map, raw_size);
+            if (map_res < 0) {
+                fputs("Failed to map temporary file for writing.\n", stderr);
+                close(fd);
                 free(raw_data);
                 free(original_name);
                 return FILE_WRITE_ERROR;
             }
-            res = restore_directory(temp_file, args.output_file, args.force, args.no_preserve_perms);
-            fclose(temp_file);
-            if (res < 0) {
-                if (res == FILE_READ_ERROR) {
-                    fputs("Failed to read the serialized data.\n", stderr);
-                } else if (res == MALLOC_ERROR) {
-                    fputs("Failed to allocate memory.\n", stderr);
-                } else if (res == MKDIR_ERROR) {
-                    fputs("Failed to create a directory.\n", stderr);
-                } else if (res == FILE_WRITE_ERROR) {
-                    fputs("Failed to write a file.\n", stderr);
-                } else {
-                    fputs("Failed to restore the directory.\n", stderr);
-                }
-            }
+            
+            memcpy(map, raw_data, raw_size);
+            
+            res = restore_directory(map, (int64_t)raw_size, args.output_file, args.force, args.no_preserve_perms);
+            
+            munmap(map, raw_size);
+            close(fd);
+
             free(raw_data);
         }
 

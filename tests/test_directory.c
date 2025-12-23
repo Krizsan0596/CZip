@@ -6,6 +6,7 @@
 #include "../lib/compatibility.h"
 #include "../lib/directory.h"
 #include "../lib/data_types.h"
+#include "../lib/file.h"
 
 // Helper function to recursively delete a directory
 static int remove_directory_recursive(const char *path) {
@@ -193,20 +194,21 @@ int main() {
     printf("  Test 1: prepare_directory with relative path...\n");
     {
         int directory_size = 0;
-        FILE *temp_file = prepare_directory(test_dir, &directory_size);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(test_dir, &directory_size, &total_size);
+        if (fd < 0) {
             fprintf(stderr, "Error: prepare_directory failed with relative path\n");
             return 1;
         }
         if (directory_size <= 0) {
             fprintf(stderr, "Error: prepare_directory returned invalid directory_size: %d\n", directory_size);
-            fclose(temp_file);
+            close(fd);
             return 1;
         }
         printf("    Relative path test passed. Directory size: %d bytes\n", directory_size);
         
         // Cleanup temp file
-        fclose(temp_file);
+        close(fd);
     }
     
     // Test 2: prepare_directory with absolute path (includes full round-trip verification)
@@ -233,14 +235,15 @@ int main() {
         }
         
         int directory_size = 0;
-        FILE *temp_file = prepare_directory(abs_path, &directory_size);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(abs_path, &directory_size, &total_size);
+        if (fd < 0) {
             fprintf(stderr, "Error: prepare_directory failed with absolute path\n");
             return 1;
         }
         if (directory_size <= 0) {
             fprintf(stderr, "Error: prepare_directory returned invalid directory_size for absolute path: %d\n", directory_size);
-            fclose(temp_file);
+            close(fd);
             return 1;
         }
         printf("    Absolute path test passed. Directory size: %d bytes\n", directory_size);
@@ -249,8 +252,18 @@ int main() {
         remove_directory_recursive(output_dir);
         mkdir(output_dir, DIR_MODE);
         
-        int result = restore_directory(temp_file, output_dir, true, false);
-        fclose(temp_file);
+        // Map the file
+        uint8_t *map = NULL;
+        int64_t map_res = read_raw_from_fd(fd, (const uint8_t**)&map);
+        if (map_res < 0) {
+             fprintf(stderr, "Error: failed to map fd\n");
+             close(fd);
+             return 1;
+        }
+
+        int result = restore_directory(map, (int64_t)total_size, output_dir, true, false);
+        munmap(map, total_size);
+        close(fd);
         if (result != 0) {
             fprintf(stderr, "Error: restore_directory failed, code: %d\n", result);
             return 1;
@@ -277,10 +290,11 @@ int main() {
     printf("  Test 3: prepare_directory with non-existent path...\n");
     {
         int directory_size = 0;
-        FILE *temp_file = prepare_directory("./non_existent_directory_12345", &directory_size);
-        if (temp_file != NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory("./non_existent_directory_12345", &directory_size, &total_size);
+        if (fd >= 0) {
             fprintf(stderr, "Error: prepare_directory should fail for non-existent directory\n");
-            fclose(temp_file);
+            close(fd);
             return 1;
         }
         printf("    Non-existent path error handling test passed.\n");
@@ -298,14 +312,15 @@ int main() {
         }
         
         int directory_size = 0;
-        FILE *temp_file = prepare_directory(test_dir, &directory_size);
+        uint64_t total_size = 0;
+        int fd = prepare_directory(test_dir, &directory_size, &total_size);
         
         if (getcwd(cwd_after, sizeof(cwd_after)) == NULL) {
             perror("getcwd error");
             return 1;
         }
         
-        if (temp_file == NULL) {
+        if (fd < 0) {
             fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
@@ -314,11 +329,11 @@ int main() {
             fprintf(stderr, "Error: Working directory changed after prepare_directory!\n");
             fprintf(stderr, "  Before: %s\n", cwd_before);
             fprintf(stderr, "  After:  %s\n", cwd_after);
-            fclose(temp_file);
+            close(fd);
             return 1;
         }
         printf("    Working directory preservation test passed.\n");
-        fclose(temp_file);
+        close(fd);
     }
     
     // Test 5: restore_directory with NULL output path (restore to current directory)
@@ -345,12 +360,22 @@ int main() {
         }
         
         int directory_size = 0;
-        FILE *temp_file = prepare_directory(abs_path, &directory_size);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(abs_path, &directory_size, &total_size);
+        if (fd < 0) {
             fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
         
+        // Map
+        uint8_t *map = NULL;
+        int64_t map_res = read_raw_from_fd(fd, (const uint8_t**)&map);
+        if (map_res < 0) {
+             fprintf(stderr, "Error: failed to map fd\n");
+             close(fd);
+             return 1;
+        }
+
         // Extract directory name
         const char *dir_name = get_directory_name(abs_path);
         
@@ -358,8 +383,9 @@ int main() {
         remove_directory_recursive(dir_name);
         
         // Use restore_directory with NULL output
-        int result = restore_directory(temp_file, NULL, true, false);
-        fclose(temp_file);
+        int result = restore_directory(map, (int64_t)total_size, NULL, true, false);
+        munmap(map, total_size);
+        close(fd);
         if (result != 0) {
             fprintf(stderr, "Error: restore_directory with NULL output failed, code: %d\n", result);
             return 1;
@@ -402,33 +428,50 @@ int main() {
         }
         
         int directory_size = 0;
-        FILE *temp_file = prepare_directory(abs_path, &directory_size);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(abs_path, &directory_size, &total_size);
+        if (fd < 0) {
             fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
         
+        // Map first time
+        uint8_t *map1 = NULL;
+        if (read_raw_from_fd(fd, (const uint8_t**)&map1) < 0) {
+             close(fd);
+             return 1;
+        }
+
         // Clean output directory and create fresh
         remove_directory_recursive(output_dir);
         
         // First extraction
-        int result = restore_directory(temp_file, output_dir, true, false);
-        fclose(temp_file);
+        int result = restore_directory(map1, (int64_t)total_size, output_dir, true, false);
+        munmap(map1, total_size);
+        close(fd);
         if (result != 0) {
             fprintf(stderr, "Error: first restore_directory failed, code: %d\n", result);
             return 1;
         }
         
         // Prepare again for second extraction
-        temp_file = prepare_directory(abs_path, &directory_size);
-        if (temp_file == NULL) {
+        fd = prepare_directory(abs_path, &directory_size, &total_size);
+        if (fd < 0) {
             fprintf(stderr, "Error: prepare_directory failed on second call\n");
             return 1;
         }
         
+        // Map second time
+        uint8_t *map2 = NULL;
+        if (read_raw_from_fd(fd, (const uint8_t**)&map2) < 0) {
+             close(fd);
+             return 1;
+        }
+
         // Second extraction with force flag (should overwrite)
-        result = restore_directory(temp_file, output_dir, true, false);
-        fclose(temp_file);
+        result = restore_directory(map2, (int64_t)total_size, output_dir, true, false);
+        munmap(map2, total_size);
+        close(fd);
         if (result != 0) {
             fprintf(stderr, "Error: second restore_directory with force failed, code: %d\n", result);
             return 1;
@@ -534,18 +577,27 @@ int main() {
         
         // Prepare directory
         int directory_size = 0;
-        FILE *temp_file = prepare_directory(abs_path, &directory_size);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(abs_path, &directory_size, &total_size);
+        if (fd < 0) {
             fprintf(stderr, "Error: prepare_directory failed\n");
             return 1;
         }
         
+        // Map
+        uint8_t *map = NULL;
+        if (read_raw_from_fd(fd, (const uint8_t**)&map) < 0) {
+             close(fd);
+             return 1;
+        }
+
         // Extract the directory
         remove_directory_recursive(perm_output_dir);
         mkdir(perm_output_dir, DIR_MODE);
         
-        int result = restore_directory(temp_file, perm_output_dir, true, false);
-        fclose(temp_file);
+        int result = restore_directory(map, (int64_t)total_size, perm_output_dir, true, false);
+        munmap(map, total_size);
+        close(fd);
         if (result != 0) {
             fprintf(stderr, "Error: restore_directory failed, code: %d\n", result);
             return 1;

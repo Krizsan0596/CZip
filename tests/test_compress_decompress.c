@@ -19,18 +19,20 @@ static int invoke_run_compression(Arguments args) {
 
     if (args.directory) {
         int directory_size_int = 0;
-        FILE *temp_file = prepare_directory(args.input_file, &directory_size_int);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(args.input_file, &directory_size_int, &total_size);
+        if (fd < 0) {
             return FILE_WRITE_ERROR;
         }
         directory_size = directory_size_int;
-        int read_res = read_from_file(temp_file, &allocated_data);
-        fclose(temp_file);
+        int read_res = read_raw_from_fd(fd, (const uint8_t**)&allocated_data);
+        close(fd);
         if (read_res < 0) {
             return read_res;
         }
         data = allocated_data;
         data_len = read_res;
+        use_mmap = true; // read_raw_from_fd returns mmapped data
     } else {
         int read_res = read_raw(args.input_file, &data);
         if (read_res < 0) {
@@ -64,22 +66,30 @@ static int invoke_run_decompression(Arguments args) {
     }
 
     if (is_dir) {
-        FILE *temp_file = tmpfile();
-        if (temp_file == NULL) {
+        int fd = create_mmapable_tmpfile((size_t)raw_size);
+        if (fd < 0) {
             fprintf(stderr, "Failed to create temporary file.\n");
             free(raw_data);
             free(original_name);
             return FILE_WRITE_ERROR;
         }
-        if (fwrite(raw_data, 1, raw_size, temp_file) != (size_t)raw_size) {
-            fprintf(stderr, "Failed to write the serialized data.\n");
-            fclose(temp_file);
+        
+        uint8_t *map = NULL;
+        int64_t map_res = write_raw_to_fd(fd, &map, raw_size);
+        if (map_res < 0) {
+            fprintf(stderr, "Failed to map temporary file.\n");
+            close(fd);
             free(raw_data);
             free(original_name);
             return FILE_WRITE_ERROR;
         }
-        res = restore_directory(temp_file, args.output_file, args.force, args.no_preserve_perms);
-        fclose(temp_file);
+        
+        memcpy(map, raw_data, raw_size);
+        
+        res = restore_directory(map, (int64_t)raw_size, args.output_file, args.force, args.no_preserve_perms);
+        
+        munmap(map, raw_size);
+        close(fd);
         free(raw_data);
     }
 

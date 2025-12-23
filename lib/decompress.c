@@ -58,7 +58,7 @@ int decompress(Compressed_file *compressed, uint8_t *raw) {
  * For directories: allocates a buffer for serialized data (caller must free).
  * Output pointer arguments must be valid addresses; the function allocates and assigns the data.
  */
-int run_decompression(Arguments args, uint8_t **raw_data, long *raw_size, bool *is_directory, char **original_name) {
+int run_decompression(Arguments args, uint8_t **raw_data, uint64_t *raw_size, bool *is_directory, char **original_name) {
     *raw_data = NULL;
     *raw_size = 0;
     *is_directory = false;
@@ -66,9 +66,9 @@ int run_decompression(Arguments args, uint8_t **raw_data, long *raw_size, bool *
 
     Compressed_file *compressed_file = NULL;
     const uint8_t *mmap_ptr = NULL;
-    long mmap_size = 0;
+    uint64_t mmap_size = 0;
     uint8_t *output_mmap = NULL;
-    long output_mmap_size = 0;
+    uint64_t output_mmap_size = 0;
     int res = 0;
 
     while (true) {
@@ -79,7 +79,7 @@ int run_decompression(Arguments args, uint8_t **raw_data, long *raw_size, bool *
             break;
         }
 
-        int read_res = read_compressed(args.input_file, compressed_file, &mmap_ptr);
+        int64_t read_res = read_compressed(args.input_file, compressed_file, &mmap_ptr);
         if (read_res < 0) {
             if (read_res == FILE_MAGIC_ERROR) {
                 fputs("The compressed file (", stderr);
@@ -97,7 +97,7 @@ int run_decompression(Arguments args, uint8_t **raw_data, long *raw_size, bool *
             }
             break;
         }
-        mmap_size = read_res;
+        mmap_size = (uint64_t)read_res;
 
         if (compressed_file->original_size <= 0) {
             fputs("The compressed file (", stderr);
@@ -146,7 +146,7 @@ int run_decompression(Arguments args, uint8_t **raw_data, long *raw_size, bool *
                 break;
             }
             output_mmap = *raw_data;
-            output_mmap_size = write_res;
+            output_mmap_size = (uint64_t)write_res;
         }
 
         int decompress_result = decompress(compressed_file, *raw_data);

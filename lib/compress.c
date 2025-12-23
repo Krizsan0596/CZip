@@ -23,10 +23,9 @@ void sort_nodes(Node *nodes, int len) {
 }
 
 /*
- * Iterates through the raw data and increments the 256-element frequency array in place.
  * Returns 0 after processing every byte; the caller must supply a zeroed frequencies array.
  */
-int count_frequencies(const uint8_t *data, long data_len, long *frequencies) {
+int count_frequencies(const uint8_t *data, uint64_t data_len, uint64_t *frequencies) {
     for (size_t i = 0; i < (size_t)data_len; i++){
         frequencies[data[i]] += 1;
     }
@@ -90,14 +89,14 @@ Node construct_branch(Node *nodes, int left_index, int right_index) {
  * Returns a pointer to the root or NULL if there are no leaves.
  * Places created branches after the leaves to keep the list ordered.
  */
-Node* construct_tree(Node *nodes, long leaf_count) { // nodes is sorted
+Node* construct_tree(Node *nodes, uint64_t leaf_count) { // nodes is sorted
     if (leaf_count <= 0) return NULL;
     if (leaf_count == 1) {
         return &nodes[0];
     }
-    long current_leaf = 0;
-    long current_branch = leaf_count;
-    long last_branch = leaf_count;
+    uint64_t current_leaf = 0;
+    uint64_t current_branch = leaf_count;
+    uint64_t last_branch = leaf_count;
 
     for (int i = 0; i < leaf_count - 1; i++) {
         int left_index, right_index;
@@ -172,7 +171,7 @@ char* find_leaf(uint8_t leaf, Node *nodes, Node *root_node) {
  * Loads the data needed for decompression into a Compressed_file structure.
  * Returns 0 on success or a negative value for allocation or traversal errors.
  */
-int compress(const uint8_t *original_data, long data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
+int compress(const uint8_t *original_data, uint64_t data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
     if (data_len == 0) {
         compressed_file->data_size = 0;
         compressed_file->compressed_data = NULL;
@@ -259,7 +258,7 @@ int compress(const uint8_t *original_data, long data_len, Node *nodes, Node *roo
  * The caller must supply the raw data beforehand (file read, directory serialization).
  * Reads directory mode from args.directory. Returns 0 on success or a negative error code.
  */
-int run_compression(Arguments args, const uint8_t *data, long data_len, long directory_size) {
+int run_compression(Arguments args, const uint8_t *data, uint64_t data_len, uint64_t directory_size) {
     // If the user did not provide an output file, generate one.
     bool output_generated = false;
     if (args.output_file == NULL) {
@@ -272,7 +271,7 @@ int run_compression(Arguments args, const uint8_t *data, long data_len, long dir
     }
 
     int write_res = 0;
-    long *frequencies = NULL;
+    uint64_t *frequencies = NULL;
     Compressed_file *compressed_file = NULL;
     Node *nodes = NULL;
     uint64_t tree_size = 0;
@@ -282,7 +281,7 @@ int run_compression(Arguments args, const uint8_t *data, long data_len, long dir
     // The loop always breaks at the end; on errors we jump to the end.
     while (true) {
         // Count the frequency of each byte in the input data.
-        frequencies = calloc(256, sizeof(long));
+        frequencies = calloc(256, sizeof(uint64_t));
         if (frequencies == NULL) {
             fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
@@ -384,7 +383,7 @@ int run_compression(Arguments args, const uint8_t *data, long data_len, long dir
             size_t compressed_size = write_res;
             const char *original_unit = get_unit(&original_size);
             const char *compressed_unit = get_unit(&compressed_size);
-            long denominator = args.directory ? directory_size : data_len;
+            uint64_t denominator = args.directory ? directory_size : data_len;
             double ratio = (denominator > 0) ? ((double)write_res / denominator * 100) : 0.0;
             printf("Compression complete.\n"
                     "Original size:    %zu%s\n"
