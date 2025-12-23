@@ -2,7 +2,6 @@
 #include "../lib/data_types.h"
 #include "../lib/file.h"
 #include <assert.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +17,7 @@ void test_file_io() {
     original_data.huffman_tree = malloc(original_data.tree_size);
     memset(original_data.huffman_tree, 'A', original_data.tree_size);
     original_data.data_size = 80;
-    long compressed_bytes = (long)ceil((double)original_data.data_size / 8.0);
+    long compressed_bytes = (long)((original_data.data_size + 7) / 8);
     original_data.compressed_data = malloc(compressed_bytes);
     memset(original_data.compressed_data, 'B', compressed_bytes);
     original_data.file_name = strdup("test.huf");
@@ -71,7 +70,7 @@ void test_file_io_with_empty_filename() {
     data.huffman_tree = malloc(data.tree_size);
     memset(data.huffman_tree, 'X', data.tree_size);
     data.data_size = 30;
-    long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
+    long compressed_bytes = (long)((data.data_size + 7) / 8);
     data.compressed_data = malloc(compressed_bytes);
     memset(data.compressed_data, 'Y', compressed_bytes);
     data.file_name = strdup("empty_name.huf");
@@ -120,7 +119,7 @@ void test_file_io_with_long_filename() {
     data.huffman_tree = malloc(data.tree_size);
     memset(data.huffman_tree, 'L', data.tree_size);
     data.data_size = 40;
-    long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
+    long compressed_bytes = (long)((data.data_size + 7) / 8);
     data.compressed_data = malloc(compressed_bytes);
     memset(data.compressed_data, 'M', compressed_bytes);
     data.file_name = strdup("long_name.huf");
@@ -197,7 +196,7 @@ void test_file_io_with_large_tree() {
     }
 
     data.data_size = 200;
-    long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
+    long compressed_bytes = (long)((data.data_size + 7) / 8);
     data.compressed_data = malloc(compressed_bytes);
     memset(data.compressed_data, 'T', compressed_bytes);
     data.file_name = strdup("large_tree.huf");
@@ -245,7 +244,7 @@ void test_file_io_with_binary_data() {
     }
 
     data.data_size = 2048; // 256 bytes
-    long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
+    long compressed_bytes = (long)((data.data_size + 7) / 8);
     data.compressed_data = malloc(compressed_bytes);
 
     for (long i = 0; i < compressed_bytes; i++) {
@@ -295,7 +294,7 @@ void test_file_io_directory_flag() {
     data.huffman_tree = malloc(data.tree_size);
     memset(data.huffman_tree, 'D', data.tree_size);
     data.data_size = 50;
-    long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
+    long compressed_bytes = (long)((data.data_size + 7) / 8);
     data.compressed_data = malloc(compressed_bytes);
     memset(data.compressed_data, 'E', compressed_bytes);
     data.file_name = strdup("directory.huf");
@@ -337,7 +336,7 @@ void test_file_io_special_chars_in_original_filename() {
     data.huffman_tree = malloc(data.tree_size);
     memset(data.huffman_tree, 'S', data.tree_size);
     data.data_size = 60;
-    long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
+    long compressed_bytes = (long)((data.data_size + 7) / 8);
     data.compressed_data = malloc(compressed_bytes);
     memset(data.compressed_data, 'P', compressed_bytes);
     data.file_name = strdup("special.huf");
@@ -397,7 +396,7 @@ void test_file_io_very_large_compressed_data() {
 
     // Large compressed data (100KB in bits = 819200 bits)
     data.data_size = 819200;
-    long compressed_bytes = (long)ceil((double)data.data_size / 8.0);
+    long compressed_bytes = (long)((data.data_size + 7) / 8);
     data.compressed_data = malloc(compressed_bytes);
     // Fill with all byte values including nulls
     for (long i = 0; i < compressed_bytes; i++) {

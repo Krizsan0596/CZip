@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -246,7 +245,7 @@ int compress(const uint8_t *original_data, long data_len, Node *nodes, Node *roo
 
     compressed_file->data_size = total_bits;
 
-    size_t final_size = (size_t)ceil((double)total_bits / 8.0);
+    size_t final_size = (total_bits + 7) / 8;
     uint8_t *temp = realloc(compressed_file->compressed_data, final_size);
     if (temp != NULL) {
         compressed_file->compressed_data = temp;

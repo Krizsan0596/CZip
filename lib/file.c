@@ -1,7 +1,6 @@
 #include "file.h"
 #include "data_types.h"
 #include "compatibility.h"
-#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -232,7 +231,7 @@ int read_compressed(char file_name[], Compressed_file *compressed, const uint8_t
         compressed->data_size = *(uint64_t*)current;
         current += sizeof(uint64_t);
 
-        size_t compressed_bytes = (size_t)ceil((double)compressed->data_size / 8.0);
+        size_t compressed_bytes = (compressed->data_size + 7) / 8;
         if (current + compressed_bytes > end) {
             ret = FILE_READ_ERROR;
             break;
