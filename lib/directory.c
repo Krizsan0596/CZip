@@ -302,7 +302,6 @@ int64_t deserialize_item(Directory_item *item, const uint8_t *in_data, int64_t r
         if (item->file_size > 0) {
             item->file_data = malloc(item->file_size);
             if (item->file_data == NULL) {
-                free(item->file_path);
                 return MALLOC_ERROR;
             }
             memcpy(item->file_data, ptr, item->file_size);
@@ -458,7 +457,14 @@ int restore_directory(const uint8_t *temp_data, int64_t temp_size, char *output_
             }
             return (int)bytes_read;
         }
-        if (bytes_read == 0) break;
+        if (bytes_read == 0) {
+            if (item.is_dir) free(item.dir_path);
+            else {
+                free(item.file_path);
+                free(item.file_data);
+            }
+            break;
+        }
         
         int ret = extract_directory(output_file, &item, force, no_preserve_perms);
         

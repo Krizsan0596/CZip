@@ -120,8 +120,6 @@ static int invoke_run_compression(Arguments args) {
     int result = run_compression(args, data, data_len, directory_size);
     if (use_mmap) {
         munmap((void*)data, data_len);
-    } else {
-        free(allocated_data);
     }
     return result;
 }
