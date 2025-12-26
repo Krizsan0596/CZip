@@ -1,6 +1,7 @@
 #ifndef DATA_TYPES_H
 #define DATA_TYPES_H
 
+#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -22,12 +23,12 @@ typedef enum {
 // A node in the Huffman tree; stores either the character or the indices of its two children in a union.
 typedef struct Node {
     Node_type type;
-    long frequency;
+    uint64_t frequency;
     union {
-        char data;
+        uint8_t data;
         struct {
-            int left;
-            int right;
+            uint32_t left;
+            uint32_t right;
         };
     };
 } Node;
@@ -44,9 +45,9 @@ typedef struct {
     size_t original_size;
     char *original_file;
     Node *huffman_tree;
-    size_t tree_size; 
-    char *compressed_data;
-    size_t data_size; // In bits.
+    uint64_t tree_size;
+    uint8_t *compressed_data;
+    uint64_t data_size;  // In bits.
 } Compressed_file;
 
 // Holds the error codes for the helper functions.
@@ -79,7 +80,7 @@ typedef struct {
         struct {
             size_t file_size;
             char *file_path;
-            char *file_data;
+            uint8_t *file_data;
         };
     };
 } Directory_item;

@@ -1,11 +1,10 @@
-#include "debugmalloc.h"
 #include "data_types.h"
+#include "compatibility.h"
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
 #include "file.h"
 #include "decompress.h"
 
@@ -14,7 +13,7 @@
  * Reads from the compressed buffer and writes the decompressed bytes into the caller-provided array.
  * Returns 0 on success or a negative value on failure.
  */
-int decompress(Compressed_file *compressed, char *raw) {
+int decompress(Compressed_file *compressed, uint8_t *raw) {
     size_t root_index = (compressed->tree_size / sizeof(Node)) - 1;
 
     size_t current_node = root_index;
@@ -23,7 +22,7 @@ int decompress(Compressed_file *compressed, char *raw) {
     // Check whether the root is a leaf (the single unique character case).
     bool root_is_leaf = (compressed->huffman_tree[root_index].type == LEAF);
 
-    unsigned char buffer = 0;
+    uint8_t buffer = 0;
     for (size_t i = 0; i < (size_t)compressed->data_size; i++) {
         if (current_raw >= compressed->original_size) {
             break;
@@ -59,45 +58,51 @@ int decompress(Compressed_file *compressed, char *raw) {
  * For directories: allocates a buffer for serialized data (caller must free).
  * Output pointer arguments must be valid addresses; the function allocates and assigns the data.
  */
-int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_directory, char **original_name) {
+int run_decompression(Arguments args, uint8_t **raw_data, uint64_t *raw_size, bool *is_directory, char **original_name) {
     *raw_data = NULL;
     *raw_size = 0;
     *is_directory = false;
     *original_name = NULL;
 
     Compressed_file *compressed_file = NULL;
-    const char *mmap_ptr = NULL;
-    long mmap_size = 0;
-    char *output_mmap = NULL;
-    long output_mmap_size = 0;
+    const uint8_t *mmap_ptr = NULL;
+    uint64_t mmap_size = 0;
+    uint8_t *output_mmap = NULL;
+    uint64_t output_mmap_size = 0;
     int res = 0;
 
     while (true) {
         compressed_file = calloc(1, sizeof(Compressed_file));
         if (compressed_file == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = ENOMEM;
             break;
         }
 
-        int read_res = read_compressed(args.input_file, compressed_file, &mmap_ptr);
+        int64_t read_res = read_compressed(args.input_file, compressed_file, &mmap_ptr);
         if (read_res < 0) {
             if (read_res == FILE_MAGIC_ERROR) {
-                fprintf(stderr, "The compressed file (%s) is corrupted and could not be read.\n", args.input_file);
+                fputs("The compressed file (", stderr);
+                fputs(args.input_file, stderr);
+                fputs(") is corrupted and could not be read.\n", stderr);
                 res = EBADF;
             } else if (read_res == MALLOC_ERROR) {
-                fprintf(stderr, "Failed to allocate memory.\n");
+                fputs("Failed to allocate memory.\n", stderr);
                 res = ENOMEM;
             } else {
-                fprintf(stderr, "Failed to read the compressed file (%s).\n", args.input_file);
+                fputs("Failed to read the compressed file (", stderr);
+                fputs(args.input_file, stderr);
+                fputs(").\n", stderr);
                 res = EIO;
             }
             break;
         }
-        mmap_size = read_res;
+        mmap_size = (uint64_t)read_res;
 
         if (compressed_file->original_size <= 0) {
-            fprintf(stderr, "The compressed file (%s) is corrupted and could not be read.\n", args.input_file);
+            fputs("The compressed file (", stderr);
+            fputs(args.input_file, stderr);
+            fputs(") is corrupted and could not be read.\n", stderr);
             res = EINVAL;
             break;
         }
@@ -105,15 +110,15 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
         *is_directory = compressed_file->is_dir;
         *original_name = strdup(compressed_file->original_file);
         if (*original_name == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = ENOMEM;
             break;
         }
 
         if (compressed_file->is_dir) {
-            *raw_data = malloc(compressed_file->original_size * sizeof(char));
+            *raw_data = malloc(compressed_file->original_size * sizeof(uint8_t));
             if (*raw_data == NULL) {
-                fprintf(stderr, "Failed to allocate memory.\n");
+                fputs("Failed to allocate memory.\n", stderr);
                 res = ENOMEM;
                 break;
             }
@@ -122,27 +127,31 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
             int write_res = write_raw(target, raw_data, compressed_file->original_size, args.force);
             if (write_res < 0) {
                 if (write_res == FILE_WRITE_ERROR) {
-                    fprintf(stderr, "Failed to write the output file (%s).\n", target);
+                    fputs("Failed to write the output file (", stderr);
+                    fputs(target, stderr);
+                    fputs(").\n", stderr);
                     res = EIO;
                 } else if (write_res == SCANF_FAILED) {
-                    fprintf(stderr, "Failed to read the response.\n");
+                    fputs("Failed to read the response.\n", stderr);
                     res = EIO;
                 } else if (write_res == NO_OVERWRITE) {
-                    fprintf(stderr, "The file was not overwritten.\n");
+                    fputs("The file was not overwritten.\n", stderr);
                     res = ECANCELED;
                 } else {
-                    fprintf(stderr, "An error occurred while writing the output file (%s).\n", target);
+                    fputs("An error occurred while writing the output file (", stderr);
+                    fputs(target, stderr);
+                    fputs(").\n", stderr);
                     res = EIO;
                 }
                 break;
             }
             output_mmap = *raw_data;
-            output_mmap_size = write_res;
+            output_mmap_size = (uint64_t)write_res;
         }
 
         int decompress_result = decompress(compressed_file, *raw_data);
         if (decompress_result != 0) {
-            fprintf(stderr, "Failed to decompress.\n");
+            fputs("Failed to decompress.\n", stderr);
             res = EIO;
             break;
         }
@@ -157,7 +166,7 @@ int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_
 
     if (output_mmap != NULL) {
         if (msync(output_mmap, output_mmap_size, MS_SYNC) == -1) {
-            fprintf(stderr, "Warning: Failed to sync output file.\n");
+            fputs("Warning: Failed to sync output file.\n", stderr);
         }
         munmap(output_mmap, output_mmap_size);
         if (res == 0) {

@@ -1,0 +1,19 @@
+# clang-tidy configuration for this project.
+# Disable the DeprecatedOrUnsafeBufferHandling analyzer check so we do not get
+# false positives about snprintf being insecure on POSIX platforms where the
+# _snprintf_s family is unavailable.
+---
+Checks: >
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+FormatStyle: none
+CheckOptions:
+  # Allow single-line statements like `if (cond) return;` without braces.
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: '1'

@@ -3,8 +3,8 @@
 
 #include "data_types.h"
 
-int decompress(Compressed_file *compressed, char *raw);
+int decompress(Compressed_file *compressed, uint8_t *raw);
 // Output pointer arguments must be valid addresses; the function allocates and fills the data.
-int run_decompression(Arguments args, char **raw_data, long *raw_size, bool *is_directory, char **original_name);
+int run_decompression(Arguments args, uint8_t **raw_data, uint64_t *raw_size, bool *is_directory, char **original_name);
 
 #endif

@@ -1,41 +1,40 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <assert.h>
 #include <errno.h>
+#include "../lib/compatibility.h"
 #include "../lib/compress.h"
 #include "../lib/decompress.h"
 #include "../lib/file.h"
 #include "../lib/data_types.h"
-#include "../lib/debugmalloc.h"
 #include "../lib/directory.h"
 
 static int invoke_run_compression(Arguments args) {
-    char *data = NULL;
-    char *allocated_data = NULL;
+    const uint8_t *data = NULL;
+    uint8_t *allocated_data = NULL;
     long data_len = 0;
     long directory_size = 0;
     bool use_mmap = false;
 
     if (args.directory) {
         int directory_size_int = 0;
-        FILE *temp_file = prepare_directory(args.input_file, &directory_size_int);
-        if (temp_file == NULL) {
+        uint64_t total_size = 0;
+        int fd = prepare_directory(args.input_file, &directory_size_int, &total_size);
+        if (fd < 0) {
             return FILE_WRITE_ERROR;
         }
         directory_size = directory_size_int;
-        int read_res = read_from_file(temp_file, &allocated_data);
-        fclose(temp_file);
+        int read_res = read_raw_from_fd(fd, (const uint8_t**)&allocated_data);
+        close(fd);
         if (read_res < 0) {
             return read_res;
         }
         data = allocated_data;
         data_len = read_res;
+        use_mmap = true; // read_raw_from_fd returns mmapped data
     } else {
-        int read_res = read_raw(args.input_file, (const char**)&data);
+        int read_res = read_raw(args.input_file, &data);
         if (read_res < 0) {
             return read_res;
         }
@@ -47,14 +46,12 @@ static int invoke_run_compression(Arguments args) {
     int result = run_compression(args, data, data_len, directory_size);
     if (use_mmap) {
         munmap((void*)data, data_len);
-    } else {
-        free(allocated_data);
     }
     return result;
 }
 
 static int invoke_run_decompression(Arguments args) {
-    char *raw_data = NULL;
+    uint8_t *raw_data = NULL;
     long raw_size = 0;
     bool is_dir = false;
     char *original_name = NULL;
@@ -67,22 +64,30 @@ static int invoke_run_decompression(Arguments args) {
     }
 
     if (is_dir) {
-        FILE *temp_file = tmpfile();
-        if (temp_file == NULL) {
+        int fd = create_mmapable_tmpfile((size_t)raw_size);
+        if (fd < 0) {
             fprintf(stderr, "Failed to create temporary file.\n");
             free(raw_data);
             free(original_name);
             return FILE_WRITE_ERROR;
         }
-        if (fwrite(raw_data, 1, raw_size, temp_file) != (size_t)raw_size) {
-            fprintf(stderr, "Failed to write the serialized data.\n");
-            fclose(temp_file);
+        
+        uint8_t *map = NULL;
+        int64_t map_res = write_raw_to_fd(fd, &map, raw_size);
+        if (map_res < 0) {
+            fprintf(stderr, "Failed to map temporary file.\n");
+            close(fd);
             free(raw_data);
             free(original_name);
             return FILE_WRITE_ERROR;
         }
-        res = restore_directory(temp_file, args.output_file, args.force, args.no_preserve_perms);
-        fclose(temp_file);
+        
+        memcpy(map, raw_data, raw_size);
+        
+        res = restore_directory(map, (int64_t)raw_size, args.output_file, args.force, args.no_preserve_perms);
+        
+        munmap(map, raw_size);
+        close(fd);
         free(raw_data);
     }
 
@@ -95,7 +100,7 @@ int main() {
     long data_len = strlen(data);
 
     long *frequencies = calloc(256, sizeof(long));
-    count_frequencies(data, data_len, frequencies);
+    count_frequencies((const uint8_t*)data, data_len, frequencies);
 
     int leaf_count = 0;
     for (int i = 0; i < 256; i++) {
@@ -108,7 +113,7 @@ int main() {
     int j = 0;
     for (int i = 0; i < 256; i++) {
         if (frequencies[i] != 0) {
-            nodes[j] = construct_leaf(frequencies[i], (char) i);
+            nodes[j] = construct_leaf(frequencies[i], (uint8_t) i);
             j++;
         }
     }
@@ -128,8 +133,8 @@ int main() {
 
     char **cache = calloc(256, sizeof(char*));
 
-    Compressed_file *compressed_file = malloc(sizeof(Compressed_file));
-    int compress_result = compress(data, data_len, nodes, root_node, cache, compressed_file);
+    Compressed_file *compressed_file = calloc(1, sizeof(Compressed_file));
+    int compress_result = compress((const uint8_t*)data, data_len, nodes, root_node, cache, compressed_file);
     if (compress_result != 0) {
         fprintf(stderr, "Compression failed with error code %d!\n", compress_result);
         free(nodes);
@@ -145,8 +150,9 @@ int main() {
 
     compressed_file->huffman_tree = nodes;
     compressed_file->tree_size = tree_size * sizeof(Node);
+    compressed_file->original_size = data_len;
 
-    char *raw_data = malloc(data_len * sizeof(char));
+    uint8_t *raw_data = malloc(data_len * sizeof(uint8_t));
     int decompress_result = decompress(compressed_file, raw_data);
     if (decompress_result != 0) {
         fprintf(stderr, "Decompression failed with error code %d!\n", decompress_result);
@@ -197,7 +203,7 @@ int main() {
         char *test_output = "test_decomp_output.txt";
         
         // Write test input file
-        char *mmap_ptr1 = NULL;
+        uint8_t *mmap_ptr1 = NULL;
         int write_res = write_raw(test_input, &mmap_ptr1, strlen(test_content), true);
         if (write_res < 0) {
             fprintf(stderr, "Error: Failed to write test input file\n");
@@ -240,7 +246,7 @@ int main() {
         }
         
         // Verify the decompressed content
-        const char *decompressed_content = NULL;
+        const uint8_t *decompressed_content = NULL;
         int read_size = read_raw(test_output, &decompressed_content);
         if (read_size < 0) {
             fprintf(stderr, "Error: Failed to read decompressed output file\n");
@@ -277,7 +283,7 @@ int main() {
         char *test_compressed = "test_default_input.huff";
         
         // Write test input file
-        char *mmap_ptr2 = NULL;
+        uint8_t *mmap_ptr2 = NULL;
         int write_res = write_raw(test_input, &mmap_ptr2, strlen(test_content), true);
         if (write_res < 0) {
             fprintf(stderr, "Error: Failed to write test input file\n");
@@ -330,7 +336,7 @@ int main() {
         }
         
         // Verify content
-        const char *decompressed_content = NULL;
+        const uint8_t *decompressed_content = NULL;
         int read_size = read_raw(test_input, &decompressed_content);
         if (read_size < 0 || (long)read_size != (long)strlen(test_content) ||
             memcmp(test_content, decompressed_content, strlen(test_content)) != 0) {
@@ -383,7 +389,7 @@ int main() {
         long single_len = 1;
         
         long *freqs = calloc(256, sizeof(long));
-        count_frequencies(single_char, single_len, freqs);
+        count_frequencies((const uint8_t*)single_char, single_len, freqs);
         
         int leaf_cnt = 0;
         for (int i = 0; i < 256; i++) {
@@ -394,7 +400,7 @@ int main() {
         int j = 0;
         for (int i = 0; i < 256; i++) {
             if (freqs[i] != 0) {
-                single_nodes[j++] = construct_leaf(freqs[i], (char)i);
+                single_nodes[j++] = construct_leaf(freqs[i], (uint8_t)i);
             }
         }
         free(freqs);
@@ -403,15 +409,16 @@ int main() {
         Node *single_root = construct_tree(single_nodes, leaf_cnt);
         
         char **single_cache = calloc(256, sizeof(char*));
-        Compressed_file *single_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *single_compressed = calloc(1, sizeof(Compressed_file));
         
-        int comp_res = compress(single_char, single_len, single_nodes, single_root, single_cache, single_compressed);
+        int comp_res = compress((const uint8_t*)single_char, single_len, single_nodes, single_root, single_cache, single_compressed);
         assert(comp_res == 0);
         
         single_compressed->huffman_tree = single_nodes;
         single_compressed->tree_size = ((single_root - single_nodes) + 1) * sizeof(Node);
+        single_compressed->original_size = single_len;
         
-        char *single_raw = malloc(single_len);
+        uint8_t *single_raw = malloc(single_len);
         int decomp_res = decompress(single_compressed, single_raw);
         assert(decomp_res == 0);
         assert(memcmp(single_char, single_raw, single_len) == 0);
@@ -434,7 +441,7 @@ int main() {
         long pattern_len = strlen(pattern);
         
         long *freqs = calloc(256, sizeof(long));
-        count_frequencies(pattern, pattern_len, freqs);
+        count_frequencies((const uint8_t*)pattern, pattern_len, freqs);
         
         int leaf_cnt = 0;
         for (int i = 0; i < 256; i++) {
@@ -445,7 +452,7 @@ int main() {
         int j = 0;
         for (int i = 0; i < 256; i++) {
             if (freqs[i] != 0) {
-                pattern_nodes[j++] = construct_leaf(freqs[i], (char)i);
+                pattern_nodes[j++] = construct_leaf(freqs[i], (uint8_t)i);
             }
         }
         free(freqs);
@@ -454,15 +461,16 @@ int main() {
         Node *pattern_root = construct_tree(pattern_nodes, leaf_cnt);
         
         char **pattern_cache = calloc(256, sizeof(char*));
-        Compressed_file *pattern_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *pattern_compressed = calloc(1, sizeof(Compressed_file));
         
-        int comp_res = compress(pattern, pattern_len, pattern_nodes, pattern_root, pattern_cache, pattern_compressed);
+        int comp_res = compress((const uint8_t*)pattern, pattern_len, pattern_nodes, pattern_root, pattern_cache, pattern_compressed);
         assert(comp_res == 0);
         
         pattern_compressed->huffman_tree = pattern_nodes;
         pattern_compressed->tree_size = ((pattern_root - pattern_nodes) + 1) * sizeof(Node);
+        pattern_compressed->original_size = pattern_len;
         
-        char *pattern_raw = malloc(pattern_len);
+        uint8_t *pattern_raw = malloc(pattern_len);
         int decomp_res = decompress(pattern_compressed, pattern_raw);
         assert(decomp_res == 0);
         assert(memcmp(pattern, pattern_raw, pattern_len) == 0);
@@ -488,7 +496,7 @@ int main() {
         long ascii_len = 95;
         
         long *freqs = calloc(256, sizeof(long));
-        count_frequencies(ascii_str, ascii_len, freqs);
+        count_frequencies((const uint8_t*)ascii_str, ascii_len, freqs);
         
         int leaf_cnt = 0;
         for (int i = 0; i < 256; i++) {
@@ -499,7 +507,7 @@ int main() {
         int j = 0;
         for (int i = 0; i < 256; i++) {
             if (freqs[i] != 0) {
-                ascii_nodes[j++] = construct_leaf(freqs[i], (char)i);
+                ascii_nodes[j++] = construct_leaf(freqs[i], (uint8_t)i);
             }
         }
         free(freqs);
@@ -508,15 +516,16 @@ int main() {
         Node *ascii_root = construct_tree(ascii_nodes, leaf_cnt);
         
         char **ascii_cache = calloc(256, sizeof(char*));
-        Compressed_file *ascii_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *ascii_compressed = calloc(1, sizeof(Compressed_file));
         
-        int comp_res = compress(ascii_str, ascii_len, ascii_nodes, ascii_root, ascii_cache, ascii_compressed);
+        int comp_res = compress((const uint8_t*)ascii_str, ascii_len, ascii_nodes, ascii_root, ascii_cache, ascii_compressed);
         assert(comp_res == 0);
         
         ascii_compressed->huffman_tree = ascii_nodes;
         ascii_compressed->tree_size = ((ascii_root - ascii_nodes) + 1) * sizeof(Node);
+        ascii_compressed->original_size = ascii_len;
         
-        char *ascii_raw = malloc(ascii_len);
+        uint8_t *ascii_raw = malloc(ascii_len);
         int decomp_res = decompress(ascii_compressed, ascii_raw);
         assert(decomp_res == 0);
         assert(memcmp(ascii_str, ascii_raw, ascii_len) == 0);
@@ -539,7 +548,7 @@ int main() {
         long binary_len = 20;
         
         long *freqs = calloc(256, sizeof(long));
-        count_frequencies(binary_data, binary_len, freqs);
+        count_frequencies((const uint8_t*)binary_data, binary_len, freqs);
         
         int leaf_cnt = 0;
         for (int i = 0; i < 256; i++) {
@@ -550,7 +559,7 @@ int main() {
         int j = 0;
         for (int i = 0; i < 256; i++) {
             if (freqs[i] != 0) {
-                binary_nodes[j++] = construct_leaf(freqs[i], (char)i);
+                binary_nodes[j++] = construct_leaf(freqs[i], (uint8_t)i);
             }
         }
         free(freqs);
@@ -559,15 +568,16 @@ int main() {
         Node *binary_root = construct_tree(binary_nodes, leaf_cnt);
         
         char **binary_cache = calloc(256, sizeof(char*));
-        Compressed_file *binary_compressed = malloc(sizeof(Compressed_file));
+        Compressed_file *binary_compressed = calloc(1, sizeof(Compressed_file));
         
-        int comp_res = compress(binary_data, binary_len, binary_nodes, binary_root, binary_cache, binary_compressed);
+        int comp_res = compress((const uint8_t*)binary_data, binary_len, binary_nodes, binary_root, binary_cache, binary_compressed);
         assert(comp_res == 0);
         
         binary_compressed->huffman_tree = binary_nodes;
         binary_compressed->tree_size = ((binary_root - binary_nodes) + 1) * sizeof(Node);
+        binary_compressed->original_size = binary_len;
         
-        char *binary_raw = malloc(binary_len);
+        uint8_t *binary_raw = malloc(binary_len);
         int decomp_res = decompress(binary_compressed, binary_raw);
         assert(decomp_res == 0);
         assert(memcmp(binary_data, binary_raw, binary_len) == 0);
@@ -619,7 +629,6 @@ int main() {
         // Create large file with repetitive but varied content
         FILE *lf = fopen(large_input, "w");
         assert(lf != NULL);
-        debugmalloc_max_block_size(10 * 1024 * 1024);  // 10MB
         for (int i = 0; i < 10000; i++) {
             fprintf(lf, "Line %d: Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n", i);
         }
@@ -650,8 +659,8 @@ int main() {
         assert(decomp_result == 0);
         
         // Verify content matches
-        const char *original_content = NULL;
-        const char *decompressed_content = NULL;
+        const uint8_t *original_content = NULL;
+        const uint8_t *decompressed_content = NULL;
         int orig_size = read_raw(large_input, &original_content);
         int decomp_size = read_raw(large_output, &decompressed_content);
         

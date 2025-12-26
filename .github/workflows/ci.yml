@@ -1,0 +1,197 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
+jobs:
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives
+        key: apt-tidy-${{ runner.os }}
+
+    - name: Install clang-tidy
+      run: sudo apt-get update && sudo apt-get install -y clang-tidy cmake ninja-build
+
+    - name: Configure (clang-tidy)
+      run: |
+        cmake -S . -B build-tidy -G Ninja \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Run clang-tidy
+      run: |
+        clang-tidy -p build-tidy \
+        --config-file=${GITHUB_WORKSPACE}/.github/.clang-tidy \
+        --warnings-as-errors=* \
+        src/*.c lib/*.c
+
+  analyzer:
+    name: clang static analyzer
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepare scan-build log dir
+      run: mkdir -p scan-build-reports
+
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives
+        key: apt-analyzer-${{ runner.os }}
+
+    - name: Install scan-build
+      run: sudo apt-get update && sudo apt-get install -y clang-tools cmake ninja-build
+
+    - name: Analyze build
+      run: |
+        scan-build --status-bugs -o scan-build-reports \
+        cmake -S . -B build-analyze -G Ninja
+        scan-build --status-bugs -o scan-build-reports \
+        cmake --build build-analyze
+
+    - name: Upload scan-build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scan-build-log
+        path: scan-build-reports
+
+  tests:
+    name: unit tests (${{ matrix.os }}, ${{ matrix.build_type }}, ${{ matrix.c_compiler }}) with sanitizers
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        build_type: [Release, Debug]
+        c_compiler: [gcc, clang, cl]
+        include:
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
+            c_sanitize_flags: "/fsanitize=address /Zi"
+            c_link_flags: "/DEBUG /INCREMENTAL:NO"
+            asan_options: "abort_on_error=1"
+            ubsan_options: ""
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            c_sanitize_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+            c_link_flags: "-fsanitize=address,undefined"
+            asan_options: "detect_leaks=1:halt_on_error=1"
+            ubsan_options: "print_stacktrace=1"
+          - os: ubuntu-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+            c_sanitize_flags: "-fsanitize=memory -fno-omit-frame-pointer -g"
+            c_link_flags: "-fsanitize=memory"
+            asan_options: "detect_leaks=1:halt_on_error=1"
+            ubsan_options: "print_stacktrace=1"
+        exclude:
+          - os: windows-latest
+            c_compiler: gcc
+          - os: windows-latest
+            c_compiler: clang
+          - os: ubuntu-latest
+            c_compiler: cl
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+    - name: Configure CMake
+      run: >
+        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_C_FLAGS="${{ matrix.c_sanitize_flags }}"
+        -DCMAKE_EXE_LINKER_FLAGS="${{ matrix.c_link_flags }}"
+        -DCMAKE_SHARED_LINKER_FLAGS="${{ matrix.c_link_flags }}"
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -S ${{ github.workspace }}
+
+    - name: Build
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    - name: Add ASAN runtime to PATH (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # Find Visual Studio installation
+        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+          -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+          -property installationPath
+        
+        # Add VC Tools bin directory to PATH (contains ASAN DLLs)
+        $vcToolsVersion = Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt"
+        $vcToolsVersion = $vcToolsVersion. Trim()
+        $asanPath = "$vsPath\VC\Tools\MSVC\$vcToolsVersion\bin\Hostx64\x64"
+        
+        echo $asanPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        Write-Host "Added to PATH: $asanPath"
+
+    - name: Test
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      env:
+        ASAN_OPTIONS: ${{ matrix.asan_options }}
+        UBSAN_OPTIONS: ${{ matrix.ubsan_options }}
+      run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives
+        key: apt-coverage-${{ runner.os }}
+
+    - name: Install coverage tools
+      run: sudo apt-get update && sudo apt-get install -y cmake ninja-build lcov
+
+    - name: Configure with coverage flags
+      run: |
+        cmake -S . -B build-cov -G Ninja \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_C_FLAGS="--coverage"
+
+    - name: Build
+      run: cmake --build build-cov
+
+    - name: Run tests
+      run: ctest --test-dir build-cov --output-on-failure
+
+    - name: Collect coverage
+      run: |
+        lcov --capture --directory build-cov --output-file coverage.info
+        genhtml coverage.info --output-directory coverage-html
+
+    - name: Upload HTML coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html
+        path: coverage-html

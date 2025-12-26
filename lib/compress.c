@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,12 +7,11 @@
 #include "compress.h"
 #include "data_types.h"
 #include "directory.h"
-#include "debugmalloc.h"
 
 // Helper for sorting with qsort.
 static int compare_nodes(const void *a, const void *b) {
-    long freq_a = ((Node*)a)->frequency;
-    long freq_b = ((Node*)b)->frequency;
+    uint64_t freq_a = ((Node*)a)->frequency;
+    uint64_t freq_b = ((Node*)b)->frequency;
     if (freq_a < freq_b) return -1;
     if (freq_a > freq_b) return 1;
     return 0;
@@ -25,12 +23,11 @@ void sort_nodes(Node *nodes, int len) {
 }
 
 /*
- * Iterates through the raw data and increments the 256-element frequency array in place.
  * Returns 0 after processing every byte; the caller must supply a zeroed frequencies array.
  */
-int count_frequencies(const char *data, long data_len, long *frequencies) {
+int count_frequencies(const uint8_t *data, uint64_t data_len, uint64_t *frequencies) {
     for (size_t i = 0; i < (size_t)data_len; i++){
-        frequencies[(unsigned char) data[i]] += 1;
+        frequencies[data[i]] += 1;
     }
     return 0;
 }
@@ -41,6 +38,7 @@ int count_frequencies(const char *data, long data_len, long *frequencies) {
  */
 char* generate_output_file(char *input_file){
     char *dir_end = strrchr(input_file, '/');
+    if (dir_end == NULL) dir_end = strrchr(input_file, '\\');
     char *name_end;
     if (dir_end != NULL) name_end = strrchr(dir_end, '.');
     else name_end = strrchr(input_file, '.');
@@ -52,24 +50,20 @@ char* generate_output_file(char *input_file){
         if (out == NULL) {
             return NULL;
         }
-        strncpy(out, input_file, name_len);
-        out[name_len] = '\0';
-        strcat(out, ".huff");
+        snprintf(out, name_len + 6, "%.*s.huff", (int)name_len, input_file);
     }
     else {
         out = malloc(strlen(input_file) + 6);
         if (out == NULL) {
             return NULL;
         }
-        strcpy(out, input_file);
-
-        strcat(out, ".huff");
+        snprintf(out, strlen(input_file) + 6, "%s.huff", input_file);
     }
     return out;
 }
 
 // Creates a leaf that stores the byte and its associated frequency.
-Node construct_leaf(long frequency, char data) {
+Node construct_leaf(uint64_t frequency, uint8_t data) {
     Node leaf = {0};
     leaf.type = LEAF;
     leaf.frequency = frequency;
@@ -95,14 +89,14 @@ Node construct_branch(Node *nodes, int left_index, int right_index) {
  * Returns a pointer to the root or NULL if there are no leaves.
  * Places created branches after the leaves to keep the list ordered.
  */
-Node* construct_tree(Node *nodes, long leaf_count) { // nodes is sorted
+Node* construct_tree(Node *nodes, uint64_t leaf_count) { // nodes is sorted
     if (leaf_count <= 0) return NULL;
     if (leaf_count == 1) {
         return &nodes[0];
     }
-    long current_leaf = 0;
-    long current_branch = leaf_count;
-    long last_branch = leaf_count;
+    uint64_t current_leaf = 0;
+    uint64_t current_branch = leaf_count;
+    uint64_t last_branch = leaf_count;
 
     for (int i = 0; i < leaf_count - 1; i++) {
         int left_index, right_index;
@@ -129,15 +123,15 @@ Node* construct_tree(Node *nodes, long leaf_count) { // nodes is sorted
  * Checks whether the sought byte's path in the Huffman tree is already cached.
  * Returns the path string if present, otherwise NULL.
  */
-char* check_cache(char leaf, char **cache) {
-    if (cache[(unsigned char) leaf] != NULL) return cache[(unsigned char) leaf];
+char* check_cache(uint8_t leaf, char **cache) {
+    if (cache[leaf] != NULL) return cache[leaf];
     else return NULL;
 }
 
 /*
  * Recursively traverses the Huffman tree, finds the byte's position, and builds the path.
  */
-char* find_leaf(char leaf, Node *nodes, Node *root_node) {
+char* find_leaf(uint8_t leaf, Node *nodes, Node *root_node) {
     char *path = NULL; 
     if (root_node->type == LEAF) {
         if (root_node->data == leaf) {
@@ -153,8 +147,7 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
         if (res != NULL) {
             path = malloc((strlen(res) + 2) * sizeof(char));
             if (path != NULL) {
-                strcpy(path, "0");
-                strcat(path, res);
+                snprintf(path, strlen(res) + 2, "0%s", res);
             }
             free(res);
             return path;
@@ -163,8 +156,7 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
         if (res != NULL) {
             path = malloc((strlen(res) + 2) * sizeof(char));
             if (path != NULL) {
-                strcpy(path, "1");
-                strcat(path, res);
+                snprintf(path, strlen(res) + 2, "1%s", res);
             }
             free(res);
             return path;
@@ -179,21 +171,21 @@ char* find_leaf(char leaf, Node *nodes, Node *root_node) {
  * Loads the data needed for decompression into a Compressed_file structure.
  * Returns 0 on success or a negative value for allocation or traversal errors.
  */
-int compress(const char *original_data, long data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
+int compress(const uint8_t *original_data, uint64_t data_len, Node *nodes, Node *root_node, char** cache, Compressed_file *compressed_file) {
     if (data_len == 0) {
         compressed_file->data_size = 0;
         compressed_file->compressed_data = NULL;
         return 0;
     }
 
-    compressed_file->compressed_data = malloc(data_len * sizeof(char));
+    compressed_file->compressed_data = malloc(data_len * sizeof(uint8_t));
     if (compressed_file->compressed_data == NULL) {
         compressed_file->data_size = 0;
         return MALLOC_ERROR;
     }
 
     size_t total_bits = 0;
-    unsigned char buffer = 0;
+    uint8_t buffer = 0;
     int bit_count = 0;
 
     for (size_t i = 0; i < (size_t)data_len; i++) {
@@ -201,7 +193,7 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
         if (path == NULL) {
             path = find_leaf(original_data[i], nodes, root_node);
             if (path != NULL) {
-                cache[(unsigned char)original_data[i]] = path;
+                cache[original_data[i]] = path;
             } else {
                 free(compressed_file->compressed_data);
                 compressed_file->compressed_data = NULL;
@@ -252,8 +244,8 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
 
     compressed_file->data_size = total_bits;
 
-    size_t final_size = (size_t)ceil((double)total_bits / 8.0);
-    char *temp = realloc(compressed_file->compressed_data, final_size);
+    size_t final_size = (total_bits + 7) / 8;
+    uint8_t *temp = realloc(compressed_file->compressed_data, final_size);
     if (temp != NULL) {
         compressed_file->compressed_data = temp;
     }
@@ -266,32 +258,32 @@ int compress(const char *original_data, long data_len, Node *nodes, Node *root_n
  * The caller must supply the raw data beforehand (file read, directory serialization).
  * Reads directory mode from args.directory. Returns 0 on success or a negative error code.
  */
-int run_compression(Arguments args, const char *data, long data_len, long directory_size) {
+int run_compression(Arguments args, const uint8_t *data, uint64_t data_len, uint64_t directory_size) {
     // If the user did not provide an output file, generate one.
     bool output_generated = false;
     if (args.output_file == NULL) {
         output_generated = true;
         args.output_file = generate_output_file(args.input_file);
         if (args.output_file == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             return ENOMEM;
         }
     }
 
     int write_res = 0;
-    long *frequencies = NULL;
+    uint64_t *frequencies = NULL;
     Compressed_file *compressed_file = NULL;
     Node *nodes = NULL;
-    long tree_size = 0;
+    uint64_t tree_size = 0;
     char **cache = NULL;
     int res = 0;
     
     // The loop always breaks at the end; on errors we jump to the end.
     while (true) {
         // Count the frequency of each byte in the input data.
-        frequencies = calloc(256, sizeof(long));
+        frequencies = calloc(256, sizeof(uint64_t));
         if (frequencies == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
@@ -305,14 +297,16 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         }
 
         if (leaf_count == 0) {
-            fprintf(stderr, "The file (%s) is empty.\n", args.input_file);
+            fputs("The file (", stderr);
+            fputs(args.input_file, stderr);
+            fputs(") is empty.\n", stderr);
             res = SUCCESS;
             break;
         }
 
         nodes = malloc((2 * leaf_count - 1) * sizeof(Node));
         if (nodes == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
@@ -320,7 +314,7 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         int j = 0;
         for (int i = 0; i < 256; i++) {
             if (frequencies[i] != 0) {
-                nodes[j] = construct_leaf(frequencies[i], (char)i);
+                nodes[j] = construct_leaf(frequencies[i], (uint8_t)i);
                 j++;
             }
         }
@@ -334,27 +328,27 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         if (root_node != NULL) {
             tree_size = (root_node - nodes) + 1;
         } else {
-            fprintf(stderr, "Failed to build the Huffman tree.\n");
+            fputs("Failed to build the Huffman tree.\n", stderr);
             res = TREE_ERROR;
             break;
         }
         cache = calloc(256, sizeof(char *));
         if (cache == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
 
         compressed_file = malloc(sizeof(Compressed_file));
         if (compressed_file == NULL) {
-            fprintf(stderr, "Failed to allocate memory.\n");
+            fputs("Failed to allocate memory.\n", stderr);
             res = MALLOC_ERROR;
             break;
         }
         // Compress the read data into the compressed_file structure.
         int compress_res = compress(data, data_len, nodes, root_node, cache, compressed_file);
         if (compress_res != 0) {
-            fprintf(stderr, "Failed to compress.\n");
+            fputs("Failed to compress.\n", stderr);
             res = compress_res;
             break;
         }
@@ -369,28 +363,34 @@ int run_compression(Arguments args, const char *data, long data_len, long direct
         write_res = write_compressed(compressed_file, args.force);
         if (write_res < 0) {
             if (write_res == NO_OVERWRITE) {
-                fprintf(stderr, "The file was not overwritten; compression was not performed.\n");
+                fputs("The file was not overwritten; compression was not performed.\n", stderr);
                 write_res = ECANCELED;
             } else if (write_res == MALLOC_ERROR) {
-                fprintf(stderr, "Failed to allocate memory.\n");
+                fputs("Failed to allocate memory.\n", stderr);
                 write_res = ENOMEM;
             } else if (write_res == SCANF_FAILED) {
-                fprintf(stderr, "Failed to read the response.\n");
+                fputs("Failed to read the response.\n", stderr);
                 write_res = EIO;
             } else {
-                fprintf(stderr, "Failed to write the output file (%s).\n", compressed_file->file_name);
+                fputs("Failed to write the output file (", stderr);
+                fputs(compressed_file->file_name, stderr);
+                fputs(").\n", stderr);
                 write_res = EIO;
             }
         }
         else {
             size_t original_size = (size_t)data_len;
             size_t compressed_size = write_res;
+            const char *original_unit = get_unit(&original_size);
+            const char *compressed_unit = get_unit(&compressed_size);
+            uint64_t denominator = args.directory ? directory_size : data_len;
+            double ratio = (denominator > 0) ? ((double)write_res / denominator * 100) : 0.0;
             printf("Compression complete.\n"
                     "Original size:    %zu%s\n"
                     "Compressed size:  %zu%s\n"
-                    "Compression ratio: %.2f%%\n", original_size, get_unit(&original_size),
-                                                 compressed_size, get_unit(&compressed_size),
-                                                 (double)write_res/(args.directory ? directory_size : data_len) * 100);
+                    "Compression ratio: %.2f%%\n", original_size, original_unit,
+                                                 compressed_size, compressed_unit,
+                                                 ratio);
         }
         break;
     }
